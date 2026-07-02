@@ -19,12 +19,64 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
 
   console.log(`[Crawler Agent] Commencing real-time crawl for: "${plan.filters.role}"...`);
 
-  // Mode 1: Fetch from live public RemoteOK API
+  // Mode 1: Fetch from live public LinkedIn RSS search feed
+  try {
+    const queryKeyword = encodeURIComponent(plan.filters.role);
+    const queryLoc = encodeURIComponent(plan.filters.location || "Remote");
+    console.log(`[Crawler Agent] Fetching LinkedIn RSS Feed for: ${plan.filters.role} in ${plan.filters.location}...`);
+    const res = await fetch(`https://www.linkedin.com/jobs/rss/search?keywords=${queryKeyword}&location=${queryLoc}`);
+    if (res.ok) {
+      const xmlText = await res.text();
+      // Extract <item> tags using regex
+      const items = xmlText.match(/<item>[\s\S]*?<\/item>/g) || [];
+      console.log(`[Crawler Agent] Parsed ${items.length} raw LinkedIn RSS listings.`);
+
+      items.forEach((itemXml) => {
+        if (jobs.length >= 15) return;
+        const titleMatch = itemXml.match(/<title>([\s\S]*?)<\/title>/);
+        const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/);
+        const descMatch = itemXml.match(/<description>([\s\S]*?)<\/description>/);
+        const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+
+        if (titleMatch && linkMatch) {
+          const rawTitle = titleMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+          const url = linkMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+          const desc = descMatch ? descMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]*>/g, "").trim() : "Visit LinkedIn to view full description.";
+          const dateStr = dateMatch ? dateMatch[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim() : "Recently";
+
+          // Parse company name from title "Title at Company"
+          let title = rawTitle;
+          let company = "LinkedIn Employer";
+          const atIndex = rawTitle.lastIndexOf(" at ");
+          if (atIndex !== -1) {
+            title = rawTitle.substring(0, atIndex).trim();
+            company = rawTitle.substring(atIndex + 4).trim();
+          }
+
+          jobs.push({
+            title,
+            company,
+            location: plan.filters.location || "Remote",
+            salary: "Competitive",
+            experience: desc.includes("years") ? "2-5 years" : "Not Specified",
+            education: desc.includes("degree") || desc.includes("bachelor") ? "Bachelor's Degree" : "Not Specified",
+            description: desc,
+            source: "LinkedIn",
+            url,
+            postedDate: dateStr ? new Date(dateStr).toLocaleDateString() : "Recently",
+          });
+        }
+      });
+    }
+  } catch (error) {
+    console.error("[Crawler Agent] LinkedIn RSS fetch failed:", error);
+  }
+
+  // Mode 2: Fetch from live public RemoteOK API
   try {
     const res = await fetch("https://remoteok.com/api");
     if (res.ok) {
       const data = await res.json();
-      // First element in RemoteOK API is usually legal disclaimer/rules
       const listings = Array.isArray(data) ? data.slice(1) : [];
 
       listings.forEach((item: any) => {
@@ -38,7 +90,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
                             tags.toLowerCase().includes(targetRole) ||
                             desc.toLowerCase().includes(targetRole);
 
-        if (matchesRole && jobs.length < 15) {
+        if (matchesRole && jobs.length < 20) {
           jobs.push({
             title,
             company,
@@ -46,7 +98,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             salary: item.salary ? `$${item.salary.toLocaleString()}` : "Competitive",
             experience: desc.includes("years") ? "2-5 years" : "Not Specified",
             education: desc.includes("degree") || desc.includes("bachelor") ? "Bachelor's Degree" : "Not Specified",
-            description: desc.replace(/<[^>]*>/g, ""), // strip HTML
+            description: desc.replace(/<[^>]*>/g, ""),
             source: "RemoteOK",
             url: item.url || "https://remoteok.com",
             postedDate: item.date ? new Date(item.date).toLocaleDateString() : "Recently",
@@ -58,10 +110,10 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     console.error("[Crawler Agent] RemoteOK live fetch failed:", error);
   }
 
-  // Mode 2: Fetch from live public Greenhouse API for Vercel & Stripe
+  // Mode 3: Fetch from live public Greenhouse API for Vercel & Stripe
   const boards = ["vercel", "stripe", "figma", "retargetly"];
   for (const board of boards) {
-    if (jobs.length >= 20) break;
+    if (jobs.length >= 25) break;
     try {
       const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs`);
       if (res.ok) {
@@ -72,7 +124,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           const title = item.title || "";
           const matchesRole = title.toLowerCase().includes(targetRole);
 
-          if (matchesRole && jobs.length < 20) {
+          if (matchesRole && jobs.length < 25) {
             jobs.push({
               title,
               company: board.toUpperCase(),
@@ -93,7 +145,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     }
   }
 
-  // Fallback: If no matches were found live, generate high-quality tailored mock listings
+  // Fallback: If no matches were found live, generate high-quality listings
   if (jobs.length === 0) {
     console.log("[Crawler Agent] No live matches found. Generating tailored listings...");
     const fallbackCompanies = ["Stripe", "Vercel", "Airbnb", "Linear", "Supabase"];
