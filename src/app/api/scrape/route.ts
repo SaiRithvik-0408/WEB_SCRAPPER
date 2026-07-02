@@ -47,6 +47,9 @@ export async function POST() {
     const rankedJobs = rankJobs(uniqueRawJobs, preference);
 
     // Save jobs to Database & record recommendations
+    console.log("Wiping older database listings to clear broken links...");
+    await prisma.job.deleteMany({});
+
     console.log("Saving scraped jobs to database...");
     const savedJobIds: string[] = [];
 
