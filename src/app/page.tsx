@@ -990,7 +990,7 @@ export default function Home() {
                 </div>
 
                 {/* Right side details card */}
-                <div className="glass p-6 rounded-xl border border-white/5 space-y-6 h-fit sticky top-24">
+                <div className="glass p-6 rounded-xl border border-white/5 space-y-6 h-fit sticky top-20 self-start">
                   {selectedJobForTool ? (
                     <>
                       <div className="border-b border-white/5 pb-4">
