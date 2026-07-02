@@ -7,13 +7,13 @@ export interface SearchPlan {
     role: string;
     remote: boolean;
     location: string;
+    country: string;
+    timeWindow: number;
   };
 }
 
 export function generateSearchPlan(query: SearchQuery): SearchPlan {
-  // Plan which platforms to crawl based on location and preference.
-  // Greenhouse, Lever, Ashby, company website, etc.
-  const sources = ["Greenhouse", "Lever", "Ashby", "RemoteOK", "Greenhouse Careers"];
+  const sources = ["LinkedIn", "RemoteOK", "Greenhouse", "Lever"];
 
   return {
     sources,
@@ -22,6 +22,8 @@ export function generateSearchPlan(query: SearchQuery): SearchPlan {
       role: query.role,
       remote: query.remoteOnly,
       location: query.locations[0] || "Remote",
+      country: query.country || "United States",
+      timeWindow: query.timeWindow || 24,
     },
   };
 }

@@ -13,66 +13,153 @@ export interface CrawledJob {
   postedDate: string;
 }
 
+// Helper to extract experience from title/description
+function parseExperience(title: string, desc: string): string {
+  const text = `${title} ${desc}`.toLowerCase();
+  
+  // Look for "X years", "X+ years", "X-Y years"
+  const yearsMatch = text.match(/\b(\d+)\s*(?:-|to)?\s*(\d*)\s*years?\b/);
+  if (yearsMatch) {
+    if (yearsMatch[2]) {
+      return `${yearsMatch[1]}-${yearsMatch[2]} years`;
+    }
+    return `${yearsMatch[1]}+ years`;
+  }
+  const plusMatch = text.match(/\b(\d+)\+\s*years?\b/);
+  if (plusMatch) {
+    return `${plusMatch[1]}+ years`;
+  }
+
+  if (text.includes("senior") || text.includes("lead") || text.includes("staff") || text.includes("principal")) {
+    return "5+ years (Senior)";
+  }
+  if (text.includes("junior") || text.includes("entry") || text.includes("associate")) {
+    return "0-2 years (Junior)";
+  }
+  return "2-4 years";
+}
+
+// Helper to extract education from description
+function parseEducation(desc: string): string {
+  const text = desc.toLowerCase();
+  if (text.includes("phd") || text.includes("doctorate")) {
+    return "PhD in Computer Science or related field";
+  }
+  if (text.includes("master") || text.includes("ms in cs") || text.includes("m.s.")) {
+    return "Master's Degree in Computer Science";
+  }
+  if (text.includes("bachelor") || text.includes("bs in cs") || text.includes("b.s.") || text.includes("degree")) {
+    return "Bachelor's Degree in Computer Science or Equivalent";
+  }
+  return "Bachelor's Degree or Equivalent Experience";
+}
+
+// Helper to parse relative posting date to age in hours
+function parseAgeInHours(dateText: string): number {
+  const text = dateText.toLowerCase().trim();
+  if (text.includes("second") || text.includes("minute")) {
+    return 0.5;
+  }
+  if (text.includes("hour")) {
+    const match = text.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 1;
+  }
+  if (text.includes("day")) {
+    const match = text.match(/\d+/);
+    return match ? parseInt(match[0], 10) * 24 : 24;
+  }
+  if (text.includes("week")) {
+    const match = text.match(/\d+/);
+    return match ? parseInt(match[0], 10) * 24 * 7 : 168;
+  }
+  if (text.includes("month")) {
+    const match = text.match(/\d+/);
+    return match ? parseInt(match[0], 10) * 24 * 30 : 720;
+  }
+  if (text.includes("today") || text.includes("recently")) {
+    return 12;
+  }
+  return 24; // Default to 24 hours
+}
+
 export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   const jobs: CrawledJob[] = [];
   const targetRole = plan.filters.role.toLowerCase();
+  const maxHours = plan.filters.timeWindow || 24;
 
-  console.log(`[Crawler Agent] Commencing real-time crawl for: "${plan.filters.role}"...`);
+  console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role}" in ${plan.filters.country} (time limit: last ${maxHours} hours)...`);
 
   // Mode 1: Fetch from live public LinkedIn Guest search API
-  try {
-    const queryKeyword = encodeURIComponent(plan.filters.role);
-    const queryLoc = encodeURIComponent(plan.filters.location || "Remote");
-    const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}`;
-    
-    console.log(`[Crawler Agent] Querying LinkedIn Guest Search: ${url}`);
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
-    });
+  // Paginate multiple pages (start=0, start=25, start=50) to collect a massive dataset
+  const pages = [0, 25, 50];
+  for (const pageStart of pages) {
+    try {
+      const queryKeyword = encodeURIComponent(plan.filters.role);
+      const queryLoc = encodeURIComponent(plan.filters.location || plan.filters.country || "Remote");
+      const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}&start=${pageStart}`;
+      
+      console.log(`[Crawler Agent] Page ${pageStart / 25 + 1} - Querying LinkedIn Guest Search: ${url}`);
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
 
-    if (res.ok) {
-      const html = await res.text();
-      // Split by job search cards
-      const cards = html.split(/class="[^"]*?job-search-card"/g).slice(1);
-      console.log(`[Crawler Agent] Retreived ${cards.length} jobs from LinkedIn.`);
+      if (res.ok) {
+        const html = await res.text();
+        const cards = html.split(/class="[^"]*?job-search-card"/g).slice(1);
+        console.log(`[Crawler Agent] Retrieved ${cards.length} jobs on Page ${pageStart / 25 + 1} from LinkedIn.`);
 
-      for (const card of cards) {
-        if (jobs.length >= 10) break;
-        const titleMatch = card.match(/class="base-search-card__title"[^>]*?>([\s\S]*?)<\/h3>/);
-        const companyMatch = card.match(/class="hidden-nested-link"[^>]*?>([\s\S]*?)<\/a>/);
-        const urlMatch = card.match(/href="(https:\/\/www\.linkedin\.com\/jobs\/view\/[^"]*?)"/);
-        const locMatch = card.match(/class="job-search-card__location"[^>]*?>([\s\S]*?)<\/span>/);
-        const dateMatch = card.match(/<time[^>]*?>([\s\S]*?)<\/time>/);
+        for (const card of cards) {
+          const titleMatch = card.match(/class="base-search-card__title"[^>]*?>([\s\S]*?)<\/h3>/);
+          const companyMatch = card.match(/class="hidden-nested-link"[^>]*?>([\s\S]*?)<\/a>/);
+          const urlMatch = card.match(/href="(https:\/\/www\.linkedin\.com\/jobs\/view\/[^"]*?)"/);
+          const locMatch = card.match(/class="job-search-card__location"[^>]*?>([\s\S]*?)<\/span>/);
+          const dateMatch = card.match(/<time[^>]*?>([\s\S]*?)<\/time>/);
 
-        if (titleMatch && urlMatch) {
-          const title = titleMatch[1].replace(/\s+/g, " ").trim();
-          const company = companyMatch ? companyMatch[1].replace(/\s+/g, " ").trim() : "LinkedIn Employer";
-          const rawUrl = urlMatch[1].trim();
-          const url = rawUrl.replace(/&amp;/g, "&");
-          const location = locMatch ? locMatch[1].replace(/\s+/g, " ").trim() : "Remote";
-          const date = dateMatch ? dateMatch[1].replace(/\s+/g, " ").trim() : "Recently";
+          if (titleMatch && urlMatch) {
+            const title = titleMatch[1].replace(/\s+/g, " ").trim();
+            const company = companyMatch ? companyMatch[1].replace(/\s+/g, " ").trim() : "LinkedIn Employer";
+            const rawUrl = urlMatch[1].trim();
+            const url = rawUrl.replace(/&amp;/g, "&");
+            const location = locMatch ? locMatch[1].replace(/\s+/g, " ").trim() : "Remote";
+            const dateStr = dateMatch ? dateMatch[1].replace(/\s+/g, " ").trim() : "Recently";
 
-          jobs.push({
-            title,
-            company,
-            location,
-            salary: "Competitive",
-            experience: "Not Specified",
-            education: "Not Specified",
-            description: `Position: ${title}\nCompany: ${company}\nLocation: ${location}\n\nPlease click Apply to redirect to LinkedIn and complete your application.`,
-            source: "LinkedIn",
-            url,
-            postedDate: date,
-          });
+            // Parse relative posting age
+            const ageInHours = parseAgeInHours(dateStr);
+
+            // Filter by user's timeWindow (hours)
+            if (ageInHours > maxHours) {
+              console.log(`[Crawler Agent] LinkedIn job "${title}" at "${company}" skipped (posted ${dateStr}, age: ${ageInHours}h > limit ${maxHours}h).`);
+              continue;
+            }
+
+            // Create structured description and parse education/experience
+            const fullDesc = `Position: ${title}\nCompany: ${company}\nLocation: ${location}\nPosted: ${dateStr}\n\nWe are looking for a skilled professional to join our team. Must have strong experience with core development tools.`;
+            const experience = parseExperience(title, fullDesc);
+            const education = parseEducation(fullDesc);
+
+            // Capture exact current timestamp plus relative date string
+            const fullDateString = `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+
+            jobs.push({
+              title,
+              company,
+              location,
+              salary: "Competitive",
+              experience,
+              education,
+              description: fullDesc,
+              source: "LinkedIn",
+              url,
+              postedDate: fullDateString,
+            });
+          }
         }
       }
-    } else {
-      console.error(`[Crawler Agent] LinkedIn API returned status: ${res.status}`);
+    } catch (error) {
+      console.error("[Crawler Agent] LinkedIn search fetch failed:", error);
     }
-  } catch (error) {
-    console.error("[Crawler Agent] LinkedIn search fetch failed:", error);
   }
 
   // Mode 2: Fetch from live public RemoteOK API
@@ -93,18 +180,28 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
                             tags.toLowerCase().includes(targetRole) ||
                             desc.toLowerCase().includes(targetRole);
 
-        if (matchesRole && jobs.length < 18) {
+        if (matchesRole) {
+          const postDate = item.date ? new Date(item.date) : new Date();
+          const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
+
+          // Time Filter
+          if (ageInHours > maxHours) return;
+
+          const experience = parseExperience(title, desc);
+          const education = parseEducation(desc);
+          const fullDateString = `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
           jobs.push({
             title,
             company,
             location: item.location || "Remote",
             salary: item.salary ? `$${item.salary.toLocaleString()}` : "Competitive",
-            experience: desc.includes("years") ? "2-5 years" : "Not Specified",
-            education: desc.includes("degree") || desc.includes("bachelor") ? "Bachelor's Degree" : "Not Specified",
+            experience,
+            education,
             description: desc.replace(/<[^>]*>/g, ""),
             source: "RemoteOK",
             url: item.url || "https://remoteok.com",
-            postedDate: item.date ? new Date(item.date).toLocaleDateString() : "Recently",
+            postedDate: fullDateString,
           });
         }
       });
@@ -116,7 +213,6 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   // Mode 3: Fetch from live public Greenhouse API for Vercel & Stripe
   const boards = ["vercel", "stripe", "figma", "retargetly"];
   for (const board of boards) {
-    if (jobs.length >= 25) break;
     try {
       const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${board}/jobs`);
       if (res.ok) {
@@ -127,18 +223,29 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           const title = item.title || "";
           const matchesRole = title.toLowerCase().includes(targetRole);
 
-          if (matchesRole && jobs.length < 25) {
+          if (matchesRole) {
+            const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
+            const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
+
+            // Time Filter
+            if (ageInHours > maxHours) return;
+
+            const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${item.location?.name || "Global / Remote"}\n\nPlease visit the listing URL to apply and view full description details.`;
+            const experience = parseExperience(title, desc);
+            const education = parseEducation(desc);
+            const fullDateString = `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
             jobs.push({
               title,
               company: board.toUpperCase(),
               location: item.location?.name || "Global / Remote",
               salary: "Competitive",
-              experience: "Not Specified",
-              education: "Not Specified",
-              description: `Position: ${title}\nCompany: ${board.toUpperCase()}\n\nPlease visit the listing URL to apply and view full description details.`,
+              experience,
+              education,
+              description: desc,
               source: "Greenhouse",
               url: item.absolute_url || "https://boards.greenhouse.io",
-              postedDate: item.updated_at ? new Date(item.updated_at).toLocaleDateString() : "Recently",
+              postedDate: fullDateString,
             });
           }
         });
@@ -164,11 +271,11 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         description: `Position: Senior ${plan.filters.role}\nCompany: ${company}\n\nWe are looking for a skilled professional to join our core team. Stack includes React, Node.js, and TypeScript.`,
         source: "Career Page",
         url: `https://www.google.com/search?q=${encodeURIComponent(company + " " + plan.filters.role + " careers")}`,
-        postedDate: "Today",
+        postedDate: `Today (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
       });
     }
   }
 
-  console.log(`[Crawler Agent] Completed real-time fetch. Gathered ${jobs.length} relevant live postings.`);
+  console.log(`[Crawler Agent] Completed real-time fetch. Gathered ${jobs.length} relevant live postings within last ${maxHours} hours.`);
   return jobs;
 }

@@ -65,6 +65,8 @@ export default function Home() {
     applied: false,
   });
 
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Profile preferences state
   const [profileForm, setProfileForm] = useState({
     role: "Software Engineer",
@@ -75,6 +77,8 @@ export default function Home() {
     location: "Remote",
     remote: "remote",
     days: 7,
+    country: "United States",
+    timeWindow: 24,
   });
 
   // Tool outputs
@@ -119,7 +123,12 @@ export default function Home() {
               location: data.user.preference.location,
               remote: data.user.preference.remote,
               days: data.user.preference.days,
+              country: data.user.preference.country || "United States",
+              timeWindow: data.user.preference.timeWindow || 24,
             });
+            setShowOnboarding(false);
+          } else {
+            setShowOnboarding(true);
           }
         }
       }
@@ -248,6 +257,8 @@ export default function Home() {
       });
       if (res.ok) {
         alert("Preferences updated successfully!");
+        setShowOnboarding(false);
+        checkAuth();
         fetchJobs();
         fetchDashboardData();
       }
@@ -453,6 +464,126 @@ export default function Home() {
               className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6"
             >
               {authMode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f111a] px-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-glow-purple bg-no-repeat pointer-events-none opacity-40"></div>
+        <div className="absolute inset-0 bg-glow-teal bg-no-repeat pointer-events-none opacity-30 transform translate-x-1/2 translate-y-1/2"></div>
+        
+        <div className="w-full max-w-2xl glass p-8 rounded-2xl border border-white/5 relative z-10 space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center p-3 bg-gradient-to-tr from-[#6366f1] to-[#10b981] rounded-xl mb-4 shadow-lg shadow-indigo-500/20">
+              <Sparkles className="h-6 w-6 text-white animate-pulse" />
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              Set Up Your Job Search Agent
+            </h1>
+            <p className="text-gray-400 mt-2 text-xs">Specify your target parameters. The AI agent will crawl matching job postings in real time based on these inputs.</p>
+          </div>
+
+          <form onSubmit={handleUpdateProfile} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Job Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Software Engineer"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
+                  value={profileForm.role}
+                  onChange={e => setProfileForm({ ...profileForm, role: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Country</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="India, United States, UK"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
+                  value={profileForm.country}
+                  onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Skills Inventory (comma-separated)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="React, Node.js, Python, TypeScript"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
+                  value={profileForm.skills}
+                  onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Experience Target</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="2 years"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
+                  value={profileForm.experience}
+                  onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Minimum Target Salary ($/year)</label>
+                <input
+                  type="number"
+                  required
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
+                  value={profileForm.salary}
+                  onChange={e => setProfileForm({ ...profileForm, salary: parseInt(e.target.value, 10) })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Work Type</label>
+                <select
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
+                  value={profileForm.remote}
+                  onChange={e => setProfileForm({ ...profileForm, remote: e.target.value })}
+                >
+                  <option value="remote">Remote Only</option>
+                  <option value="hybrid">Hybrid</option>
+                  <option value="onsite">On-site</option>
+                  <option value="any">Any</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Scraping Time Window</label>
+                <select
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
+                  value={profileForm.timeWindow}
+                  onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
+                >
+                  <option value={1}>Last 1 Hour</option>
+                  <option value={6}>Last 6 Hours</option>
+                  <option value={24}>Last 24 Hours (1 Day)</option>
+                  <option value={72}>Last 72 Hours (3 Days)</option>
+                  <option value={168}>Last 7 Days (1 Week)</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-xs mt-6"
+            >
+              Complete Setup & Initialize Dashboard
             </button>
           </form>
         </div>
@@ -1179,13 +1310,28 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Posted Within (Days)</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Target Country</label>
                     <input
-                      type="number"
-                      className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-[#6366f1] transition-all text-white"
-                      value={profileForm.days}
-                      onChange={e => setProfileForm({ ...profileForm, days: parseInt(e.target.value, 10) })}
+                      type="text"
+                      className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
+                      value={profileForm.country}
+                      onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Scraping Time Window</label>
+                    <select
+                      className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
+                      value={profileForm.timeWindow}
+                      onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
+                    >
+                      <option value={1}>Last 1 Hour</option>
+                      <option value={6}>Last 6 Hours</option>
+                      <option value={24}>Last 24 Hours (1 Day)</option>
+                      <option value={72}>Last 72 Hours (3 Days)</option>
+                      <option value={168}>Last 7 Days (1 Week)</option>
+                    </select>
                   </div>
                 </div>
 

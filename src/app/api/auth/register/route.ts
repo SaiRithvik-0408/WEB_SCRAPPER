@@ -27,20 +27,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create default preference
-    await prisma.preference.create({
-      data: {
-        userId: user.id,
-        skills: "Python, JavaScript, Node.js",
-        education: "Bachelor's",
-        experience: "2 years",
-        salary: 80000,
-        location: "Remote",
-        role: "Software Engineer",
-        days: 7,
-        remote: "remote",
-      },
-    });
+
 
     const token = signToken({ userId: user.id, email: user.email });
 

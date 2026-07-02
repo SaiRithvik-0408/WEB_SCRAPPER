@@ -4,6 +4,8 @@ export interface SearchQuery {
   locations: string[];
   remoteOnly: boolean;
   minSalary?: number;
+  country: string;
+  timeWindow: number;
 }
 
 export function analyzePreferences(preference: {
@@ -12,6 +14,8 @@ export function analyzePreferences(preference: {
   location: string;
   remote: string;
   salary: number;
+  country: string;
+  timeWindow: number;
 }): SearchQuery {
   // Extract clean keywords from skills
   const skillsList = preference.skills
@@ -44,5 +48,7 @@ export function analyzePreferences(preference: {
     locations: preference.location.split(",").map(l => l.trim()),
     remoteOnly: preference.remote.toLowerCase() === "remote",
     minSalary: preference.salary,
+    country: preference.country || "United States",
+    timeWindow: preference.timeWindow || 24,
   };
 }

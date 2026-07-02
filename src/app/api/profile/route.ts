@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { role, skills, education, experience, salary, location, remote, days } = await req.json();
+    const { role, skills, education, experience, salary, location, remote, days, country, timeWindow } = await req.json();
     const userId = session.userId;
 
     const preference = await prisma.preference.upsert({
@@ -41,6 +41,8 @@ export async function POST(req: Request) {
         location,
         remote,
         days: parseInt(days, 10),
+        country,
+        timeWindow: parseInt(timeWindow, 10),
       },
       create: {
         userId,
@@ -52,6 +54,8 @@ export async function POST(req: Request) {
         location,
         remote,
         days: parseInt(days, 10),
+        country,
+        timeWindow: parseInt(timeWindow, 10),
       },
     });
 
