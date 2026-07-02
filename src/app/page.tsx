@@ -903,7 +903,7 @@ export default function Home() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Left side list */}
-                <div className="lg:col-span-2 space-y-4">
+                <div className="lg:col-span-2 space-y-4 max-h-[calc(100vh-280px)] overflow-y-auto pr-2">
                   {jobs.length === 0 ? (
                     <div className="glass p-8 text-center rounded-xl border border-white/5">
                       <Briefcase className="h-8 w-8 text-slate-600 mx-auto mb-2" />
@@ -990,7 +990,7 @@ export default function Home() {
                 </div>
 
                 {/* Right side details card */}
-                <div className="glass p-6 rounded-xl border border-white/5 space-y-6 h-fit sticky top-20 self-start">
+                <div className="glass p-6 rounded-xl border border-white/5 space-y-6 max-h-[calc(100vh-280px)] overflow-y-auto self-start w-full">
                   {selectedJobForTool ? (
                     <>
                       <div className="border-b border-white/5 pb-4">
