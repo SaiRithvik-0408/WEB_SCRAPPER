@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  preference    Preference?
+  savedJobs     SavedJob[]
+  appliedJobs   AppliedJob[]
+  notifications Notification[]
+}
+
+model Preference {
+  id         String @id @default(uuid())
+  userId     String @unique
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills     String
+  education  String
+  experience String
+  salary     Float
+  location   String
+  role       String
+  days       Int
+  remote     String
+}
+
+model Job {
+  id            String         @id @default(uuid())
+  title         String
+  company       String
+  location      String
+  salary        String
+  experience    String
+  education     String
+  description   String
+  source        String
+  url           String
+  postedDate    String
+  scrapedTime   DateTime       @default(now())
+  savedBy       SavedJob[]
+  appliedBy     AppliedJob[]
+  notifications Notification[]
+}
+
+model SavedJob {
+  id     String  @id @default(uuid())
+  userId String
+  jobId  String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job    Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  saved  Boolean @default(true)
+
+  @@unique([userId, jobId])
+}
+
+model AppliedJob {
+  id          String   @id @default(uuid())
+  userId      String
+  jobId       String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  appliedDate DateTime @default(now())
+
+  @@unique([userId, jobId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  jobId     String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sent      Boolean  @default(false)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
