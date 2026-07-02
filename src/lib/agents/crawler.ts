@@ -17,7 +17,6 @@ export interface CrawledJob {
 function parseExperience(title: string, desc: string): string {
   const text = `${title} ${desc}`.toLowerCase();
   
-  // Look for "X years", "X+ years", "X-Y years"
   const yearsMatch = text.match(/\b(\d+)\s*(?:-|to)?\s*(\d*)\s*years?\b/);
   if (yearsMatch) {
     if (yearsMatch[2]) {
@@ -90,13 +89,14 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role}" in ${plan.filters.country} (time limit: last ${maxHours} hours)...`);
 
   // Mode 1: Fetch from live public LinkedIn Guest search API
-  // Paginate multiple pages (start=0, start=25, start=50) to collect a massive dataset
-  const pages = [0, 25, 50];
+  // Paginate 8 pages (start=0, 25, 50, 75, 100, 125, 150, 175) to compile up to 200 listings
+  // Sort by date (sortBy=DD) to retrieve newest jobs first
+  const pages = [0, 25, 50, 75, 100, 125, 150, 175];
   for (const pageStart of pages) {
     try {
       const queryKeyword = encodeURIComponent(plan.filters.role);
       const queryLoc = encodeURIComponent(plan.filters.location || plan.filters.country || "Remote");
-      const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}&start=${pageStart}`;
+      const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}&start=${pageStart}&sortBy=DD`;
       
       console.log(`[Crawler Agent] Page ${pageStart / 25 + 1} - Querying LinkedIn Guest Search: ${url}`);
       const res = await fetch(url, {
@@ -109,6 +109,8 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         const html = await res.text();
         const cards = html.split(/class="[^"]*?job-search-card"/g).slice(1);
         console.log(`[Crawler Agent] Retrieved ${cards.length} jobs on Page ${pageStart / 25 + 1} from LinkedIn.`);
+
+        if (cards.length === 0) break; // Stop pagination if no more cards are returned
 
         for (const card of cards) {
           const titleMatch = card.match(/class="base-search-card__title"[^>]*?>([\s\S]*?)<\/h3>/);
@@ -130,7 +132,6 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
 
             // Filter by user's timeWindow (hours)
             if (ageInHours > maxHours) {
-              console.log(`[Crawler Agent] LinkedIn job "${title}" at "${company}" skipped (posted ${dateStr}, age: ${ageInHours}h > limit ${maxHours}h).`);
               continue;
             }
 
@@ -139,7 +140,6 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             const experience = parseExperience(title, fullDesc);
             const education = parseEducation(fullDesc);
 
-            // Capture exact current timestamp plus relative date string
             const fullDateString = `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
 
             jobs.push({
@@ -184,7 +184,6 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           const postDate = item.date ? new Date(item.date) : new Date();
           const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
-          // Time Filter
           if (ageInHours > maxHours) return;
 
           const experience = parseExperience(title, desc);
@@ -227,7 +226,6 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
             const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
-            // Time Filter
             if (ageInHours > maxHours) return;
 
             const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${item.location?.name || "Global / Remote"}\n\nPlease visit the listing URL to apply and view full description details.`;
