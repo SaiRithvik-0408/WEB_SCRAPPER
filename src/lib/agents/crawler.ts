@@ -75,6 +75,10 @@ function parseAgeInHours(dateText: string): number {
     const match = text.match(/\d+/);
     return match ? parseInt(match[0], 10) * 24 * 30 : 720;
   }
+  if (text.includes("year")) {
+    const match = text.match(/\d+/);
+    return match ? parseInt(match[0], 10) * 24 * 365 : 8760;
+  }
   if (text.includes("today") || text.includes("recently")) {
     return 12;
   }
