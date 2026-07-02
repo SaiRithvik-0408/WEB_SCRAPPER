@@ -219,7 +219,7 @@ export default function Home() {
     }
   };
 
-  const handleApplyJob = async (jobId: string) => {
+  const handleApplyJob = async (jobId: string, jobUrl: string) => {
     try {
       const res = await fetch("/api/jobs/apply", {
         method: "POST",
@@ -229,6 +229,9 @@ export default function Home() {
       if (res.ok) {
         fetchJobs();
         fetchDashboardData();
+        if (jobUrl) {
+          window.open(jobUrl, "_blank", "noopener,noreferrer");
+        }
       }
     } catch (e) {
       console.error(e);
@@ -961,7 +964,7 @@ export default function Home() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleApplyJob(job.id);
+                              handleApplyJob(job.id, job.url);
                             }}
                             className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
                               job.applied ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default" : "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-700"
