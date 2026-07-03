@@ -222,24 +222,33 @@ export default function Home() {
       if (res.ok) {
         fetchJobs();
         fetchDashboardData();
+        if (selectedJobForTool && selectedJobForTool.id === jobId) {
+          setSelectedJobForTool({ ...selectedJobForTool, saved: !currentSaved });
+        }
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleApplyJob = async (jobId: string, jobUrl: string) => {
+  const handleApplyJob = (jobUrl: string) => {
+    if (jobUrl) {
+      window.open(jobUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleToggleApply = async (jobId: string, currentApplied: boolean) => {
     try {
       const res = await fetch("/api/jobs/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId }),
+        body: JSON.stringify({ jobId, applied: !currentApplied }),
       });
       if (res.ok) {
         fetchJobs();
         fetchDashboardData();
-        if (jobUrl) {
-          window.open(jobUrl, "_blank", "noopener,noreferrer");
+        if (selectedJobForTool && selectedJobForTool.id === jobId) {
+          setSelectedJobForTool({ ...selectedJobForTool, applied: !currentApplied });
         }
       }
     } catch (e) {
@@ -503,10 +512,9 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Country</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Country (Optional)</label>
                 <input
                   type="text"
-                  required
                   placeholder="India, United States, UK"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
                   value={profileForm.country}
@@ -515,10 +523,9 @@ export default function Home() {
               </div>
 
               <div className="col-span-2">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Skills Inventory (comma-separated)</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Skills Inventory (comma-separated, Optional)</label>
                 <input
                   type="text"
-                  required
                   placeholder="React, Node.js, Python, TypeScript"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
                   value={profileForm.skills}
@@ -527,11 +534,10 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Experience Target</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Experience Target (Optional)</label>
                 <input
                   type="text"
-                  required
-                  placeholder="2 years"
+                  placeholder="e.g. 2 years"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
                   value={profileForm.experience}
                   onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })}
@@ -539,13 +545,12 @@ export default function Home() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Minimum Target Salary ($/year)</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Minimum Target Salary ($/year, Optional)</label>
                 <input
                   type="number"
-                  required
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
                   value={profileForm.salary}
-                  onChange={e => setProfileForm({ ...profileForm, salary: parseInt(e.target.value, 10) })}
+                  onChange={e => setProfileForm({ ...profileForm, salary: e.target.value ? parseInt(e.target.value, 10) : 0 })}
                 />
               </div>
 
@@ -570,6 +575,7 @@ export default function Home() {
                   value={profileForm.timeWindow}
                   onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
                 >
+                  <option value={-1}>All Time (Disable Age Filter)</option>
                   <option value={1}>Last 1 Hour</option>
                   <option value={6}>Last 6 Hours</option>
                   <option value={24}>Last 24 Hours (1 Day)</option>
@@ -750,7 +756,13 @@ export default function Home() {
 
               {/* Statistical cards Grid */}
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+                <div
+                  onClick={() => {
+                    setFilters({ ...filters, saved: false, applied: false });
+                    setActiveTab("jobs");
+                  }}
+                  className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-indigo-500/30 hover:bg-white/5 transition-all"
+                >
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Scraped</span>
                   <div className="flex items-baseline space-x-2 mt-2">
                     <span className="text-3xl font-extrabold">{stats.totalJobs}</span>
@@ -758,7 +770,13 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+                <div
+                  onClick={() => {
+                    setFilters({ ...filters, saved: false, applied: false });
+                    setActiveTab("jobs");
+                  }}
+                  className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-emerald-500/30 hover:bg-white/5 transition-all"
+                >
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Today's New</span>
                   <div className="flex items-baseline space-x-2 mt-2">
                     <span className="text-3xl font-extrabold text-emerald-400">{stats.newJobs}</span>
@@ -766,21 +784,39 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+                <div
+                  onClick={() => {
+                    setFilters({ ...filters, saved: false, applied: true });
+                    setActiveTab("jobs");
+                  }}
+                  className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-sky-500/30 hover:bg-white/5 transition-all"
+                >
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Applied</span>
                   <div className="flex items-baseline space-x-2 mt-2">
                     <span className="text-3xl font-extrabold text-sky-400">{stats.applied}</span>
                   </div>
                 </div>
 
-                <div className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between">
+                <div
+                  onClick={() => {
+                    setFilters({ ...filters, saved: true, applied: false });
+                    setActiveTab("jobs");
+                  }}
+                  className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-amber-500/30 hover:bg-white/5 transition-all"
+                >
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Saved</span>
                   <div className="flex items-baseline space-x-2 mt-2">
                     <span className="text-3xl font-extrabold text-amber-400">{stats.saved}</span>
                   </div>
                 </div>
 
-                <div className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between col-span-2 lg:col-span-1">
+                <div
+                  onClick={() => {
+                    setFilters({ ...filters, saved: false, applied: false });
+                    setActiveTab("jobs");
+                  }}
+                  className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between col-span-2 lg:col-span-1 cursor-pointer hover:border-purple-500/30 hover:bg-white/5 transition-all"
+                >
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">AI Recommended</span>
                   <div className="flex items-baseline space-x-2 mt-2">
                     <span className="text-3xl font-extrabold text-purple-400">{stats.recommended}</span>
@@ -1095,13 +1131,24 @@ export default function Home() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleApplyJob(job.id, job.url);
+                              handleToggleApply(job.id, job.applied);
                             }}
-                            className={`px-3 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                              job.applied ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 cursor-default" : "bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-700"
+                            className={`p-2 rounded-lg border transition-all ${
+                              job.applied ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
                             }`}
+                            title={job.applied ? "Marked as Applied" : "Mark as Applied"}
                           >
-                            {job.applied ? "Applied" : "Apply"}
+                            <CheckCircle className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApplyJob(job.url);
+                            }}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold border bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-700 transition-all"
+                          >
+                            Apply
                           </button>
 
                           <button
@@ -1157,15 +1204,25 @@ export default function Home() {
                       </div>
 
                       <div className="flex flex-col gap-2 pt-4 border-t border-white/5">
-                        <a
-                          href={selectedJobForTool.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs py-2 px-3 rounded-lg border border-white/5 text-center flex items-center justify-center space-x-1"
+                        <button
+                          onClick={() => handleApplyJob(selectedJobForTool.url)}
+                          className="w-full bg-[#6366f1] hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-3 rounded-lg flex items-center justify-center space-x-1"
                         >
-                          <span>Visit career board page</span>
+                          <span>Apply (Visit Career Board)</span>
                           <ArrowUpRight className="h-3.5 w-3.5" />
-                        </a>
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleApply(selectedJobForTool.id, selectedJobForTool.applied)}
+                          className={`w-full font-bold text-xs py-2.5 px-3 rounded-lg border transition-all flex items-center justify-center space-x-1.5 ${
+                            selectedJobForTool.applied
+                              ? "bg-emerald-600 border-emerald-500 text-white"
+                              : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          <span>{selectedJobForTool.applied ? "Marked as Applied" : "Mark as Applied"}</span>
+                        </button>
 
                         <button
                           onClick={() => handleGeneratePrepQuestions(selectedJobForTool)}
@@ -1326,6 +1383,7 @@ export default function Home() {
                       value={profileForm.timeWindow}
                       onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
                     >
+                      <option value={-1}>All Time (Disable Age Filter)</option>
                       <option value={1}>Last 1 Hour</option>
                       <option value={6}>Last 6 Hours</option>
                       <option value={24}>Last 24 Hours (1 Day)</option>

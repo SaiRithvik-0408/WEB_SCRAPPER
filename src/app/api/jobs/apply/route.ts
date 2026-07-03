@@ -9,20 +9,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { jobId } = await req.json();
+    const { jobId, applied } = await req.json();
     const userId = session.userId;
 
     if (!jobId) {
       return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
     }
 
-    await prisma.appliedJob.upsert({
-      where: { userId_jobId: { userId, jobId } },
-      update: {},
-      create: { userId, jobId },
-    });
-
-    return NextResponse.json({ success: true, applied: true });
+    if (applied === false) {
+      await prisma.appliedJob.deleteMany({
+        where: { userId, jobId },
+      });
+      return NextResponse.json({ success: true, applied: false });
+    } else {
+      await prisma.appliedJob.upsert({
+        where: { userId_jobId: { userId, jobId } },
+        update: {},
+        create: { userId, jobId },
+      });
+      return NextResponse.json({ success: true, applied: true });
+    }
   } catch (error: any) {
     console.error("Apply job error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

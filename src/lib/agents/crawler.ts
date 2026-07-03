@@ -188,7 +188,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           const postDate = item.date ? new Date(item.date) : new Date();
           const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
-          if (ageInHours > maxHours) return;
+          if (maxHours > 0 && ageInHours > maxHours) return;
 
           const experience = parseExperience(title, desc);
           const education = parseEducation(desc);
@@ -230,7 +230,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
             const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
-            if (ageInHours > maxHours) return;
+            if (maxHours > 0 && ageInHours > maxHours) return;
 
             const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${item.location?.name || "Global / Remote"}\n\nPlease visit the listing URL to apply and view full description details.`;
             const experience = parseExperience(title, desc);
