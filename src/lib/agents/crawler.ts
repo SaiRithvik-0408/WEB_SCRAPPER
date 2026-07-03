@@ -89,28 +89,35 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   const jobs: CrawledJob[] = [];
   const targetRole = (plan.filters.role || "").toLowerCase();
   const maxHours = plan.filters.timeWindow !== undefined && plan.filters.timeWindow !== null ? plan.filters.timeWindow : 24;
+  const targetCountry = (plan.filters.country || "").toLowerCase().trim();
+  const wantsRemote = plan.filters.remote === true;
 
-  console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role || "Any"}" in ${plan.filters.country} (time limit: last ${maxHours} hours)...`);
+  console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role || "Any"}" in ${plan.filters.country || "Any"} (time limit: last ${maxHours} hours)...`);
 
-  // Mode 1: Fetch from live public LinkedIn Guest search API
-  // Paginate 8 pages (start=0, 25, 50, 75, 100, 125, 150, 175) to compile up to 200 listings
-  // Sort by date (sortBy=DD) to retrieve newest jobs first
+  // --- Helper: check if a job location matches the user's country preference ---
+  const locationMatchesCountry = (loc: string): { matches: boolean; isRemote: boolean } => {
+    const l = loc.toLowerCase();
+    const isRemote = l.includes("remote") || l.includes("global") || l.includes("anywhere") || l.includes("worldwide");
+    if (!targetCountry) return { matches: true, isRemote };
+    const matchesCountry = l.includes(targetCountry);
+    return { matches: matchesCountry || (isRemote && wantsRemote), isRemote };
+  };
+
+  // Mode 1: LinkedIn Guest Search — search by country directly
   const pages = [0, 25, 50, 75, 100, 125, 150, 175];
   for (const pageStart of pages) {
     try {
       const searchRole = plan.filters.role || "";
       const queryKeyword = encodeURIComponent(searchRole);
-      
-      let searchLoc = plan.filters.location || "Remote";
-      if (searchLoc.toLowerCase() === "remote" && plan.filters.country) {
-        searchLoc = `Remote, ${plan.filters.country}`;
-      } else if (plan.filters.country && !searchLoc.toLowerCase().includes(plan.filters.country.toLowerCase())) {
-        searchLoc = `${searchLoc}, ${plan.filters.country}`;
-      }
+
+      // Build location: prefer specific location, otherwise fall back to country
+      let searchLoc = plan.filters.location && plan.filters.location.toLowerCase() !== "remote"
+        ? plan.filters.location
+        : (plan.filters.country || "Remote");
       const queryLoc = encodeURIComponent(searchLoc);
       const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}&start=${pageStart}&sortBy=DD`;
-      
-      console.log(`[Crawler Agent] Page ${pageStart / 25 + 1} - Querying LinkedIn Guest Search: ${url}`);
+
+      console.log(`[Crawler Agent] Page ${pageStart / 25 + 1} - Querying LinkedIn: ${url}`);
       const res = await fetch(url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -120,9 +127,8 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
       if (res.ok) {
         const html = await res.text();
         const cards = html.split(/class="[^"]*?job-search-card"/g).slice(1);
-        console.log(`[Crawler Agent] Retrieved ${cards.length} jobs on Page ${pageStart / 25 + 1} from LinkedIn.`);
-
-        if (cards.length === 0) break; // Stop pagination if no more cards are returned
+        console.log(`[Crawler Agent] Retrieved ${cards.length} jobs on Page ${pageStart / 25 + 1}.`);
+        if (cards.length === 0) break;
 
         for (const card of cards) {
           const titleMatch = card.match(/class="base-search-card__title"[^>]*?>([\s\S]*?)<\/h3>/);
@@ -134,25 +140,17 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           if (titleMatch && urlMatch) {
             const title = titleMatch[1].replace(/\s+/g, " ").trim();
             const company = companyMatch ? companyMatch[1].replace(/\s+/g, " ").trim() : "LinkedIn Employer";
-            const rawUrl = urlMatch[1].trim();
-            const url = rawUrl.replace(/&amp;/g, "&");
-            const location = locMatch ? locMatch[1].replace(/\s+/g, " ").trim() : "Remote";
+            const url = urlMatch[1].trim().replace(/&amp;/g, "&");
+            const location = locMatch ? locMatch[1].replace(/\s+/g, " ").trim() : searchLoc;
             const dateStr = dateMatch ? dateMatch[1].replace(/\s+/g, " ").trim() : "Recently";
 
-            // Parse relative posting age
             const ageInHours = parseAgeInHours(dateStr);
+            if (maxHours > 0 && ageInHours > maxHours) continue;
 
-            // Filter by user's timeWindow (hours)
-            if (maxHours > 0 && ageInHours > maxHours) {
-              continue;
-            }
-
-            // Create structured description and parse education/experience
+            // LinkedIn already filters by location in the query, so we trust the results
             const fullDesc = `Position: ${title}\nCompany: ${company}\nLocation: ${location}\nPosted: ${dateStr}\n\nWe are looking for a skilled professional to join our team. Must have strong experience with core development tools.`;
             const experience = parseExperience(title, fullDesc);
             const education = parseEducation(fullDesc);
-
-            const fullDateString = `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
 
             jobs.push({
               title,
@@ -164,7 +162,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
               description: fullDesc,
               source: "LinkedIn",
               url,
-              postedDate: fullDateString,
+              postedDate: `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
             });
           }
         }
@@ -174,65 +172,55 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     }
   }
 
-  // Mode 2: Fetch from live public RemoteOK API
-  try {
-    const res = await fetch("https://remoteok.com/api");
-    if (res.ok) {
-      const data = await res.json();
-      const listings = Array.isArray(data) ? data.slice(1) : [];
+  // Mode 2: RemoteOK — only include if user wants remote work
+  if (wantsRemote || !targetCountry) {
+    try {
+      const res = await fetch("https://remoteok.com/api");
+      if (res.ok) {
+        const data = await res.json();
+        const listings = Array.isArray(data) ? data.slice(1) : [];
 
-      listings.forEach((item: any) => {
-        const title = item.position || "";
-        const company = item.company || "";
-        const desc = item.description || "";
-        const tags = Array.isArray(item.tags) ? item.tags.join(", ") : "";
+        listings.forEach((item: any) => {
+          const title = item.position || "";
+          const company = item.company || "";
+          const desc = item.description || "";
+          const tags = Array.isArray(item.tags) ? item.tags.join(", ") : "";
 
-        // Check if job matches target role keyword
-        const matchesRole = !targetRole ||
-                            title.toLowerCase().includes(targetRole) || 
-                            tags.toLowerCase().includes(targetRole) ||
-                            desc.toLowerCase().includes(targetRole);
+          const matchesRole = !targetRole ||
+            title.toLowerCase().includes(targetRole) ||
+            tags.toLowerCase().includes(targetRole) ||
+            desc.toLowerCase().includes(targetRole);
 
-        if (matchesRole) {
+          if (!matchesRole) return;
+
           const postDate = item.date ? new Date(item.date) : new Date();
           const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
-
           if (maxHours > 0 && ageInHours > maxHours) return;
 
-          const jobLoc = item.location || "Remote";
-          if (plan.filters.country && plan.filters.country.toLowerCase() !== "united states") {
-            const countryLower = plan.filters.country.toLowerCase();
-            const jobLocLower = jobLoc.toLowerCase();
-            const isRemote = jobLocLower.includes("remote") || jobLocLower.includes("global");
-            if (!jobLocLower.includes(countryLower) && !isRemote) {
-              return;
-            }
-          }
-
+          const displayLoc = plan.filters.country ? `Remote (${plan.filters.country})` : "Remote";
           const experience = parseExperience(title, desc);
           const education = parseEducation(desc);
-          const fullDateString = `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
           jobs.push({
             title,
             company,
-            location: item.location || "Remote",
+            location: displayLoc,
             salary: item.salary ? `$${item.salary.toLocaleString()}` : "Competitive",
             experience,
             education,
             description: desc.replace(/<[^>]*>/g, ""),
             source: "RemoteOK",
             url: item.url || "https://remoteok.com",
-            postedDate: fullDateString,
+            postedDate: `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
           });
-        }
-      });
+        });
+      }
+    } catch (error) {
+      console.error("[Crawler Agent] RemoteOK live fetch failed:", error);
     }
-  } catch (error) {
-    console.error("[Crawler Agent] RemoteOK live fetch failed:", error);
   }
 
-  // Mode 3: Fetch from live public Greenhouse API for Vercel & Stripe
+  // Mode 3: Greenhouse boards — filter strictly by country, allow remote only if user wants remote
   const boards = ["vercel", "stripe", "figma", "retargetly"];
   for (const board of boards) {
     try {
@@ -244,41 +232,34 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         listings.forEach((item: any) => {
           const title = item.title || "";
           const matchesRole = !targetRole || title.toLowerCase().includes(targetRole);
+          if (!matchesRole) return;
 
-          if (matchesRole) {
-            const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
-            const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
+          const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
+          const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
+          if (maxHours > 0 && ageInHours > maxHours) return;
 
-            if (maxHours > 0 && ageInHours > maxHours) return;
+          const jobLoc = item.location?.name || "Global / Remote";
+          const { matches, isRemote } = locationMatchesCountry(jobLoc);
+          if (!matches) return;
 
-            const jobLoc = item.location?.name || "Global / Remote";
-            if (plan.filters.country && plan.filters.country.toLowerCase() !== "united states") {
-              const countryLower = plan.filters.country.toLowerCase();
-              const jobLocLower = jobLoc.toLowerCase();
-              const isRemote = jobLocLower.includes("remote") || jobLocLower.includes("global");
-              if (!jobLocLower.includes(countryLower) && !isRemote) {
-                return;
-              }
-            }
+          const displayLoc = isRemote && plan.filters.country
+            ? `Remote (${plan.filters.country})`
+            : jobLoc;
 
-            const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${jobLoc}\n\nPlease visit the listing URL to apply and view full description details.`;
-            const experience = parseExperience(title, desc);
-            const education = parseEducation(desc);
-            const fullDateString = `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${displayLoc}\n\nPlease visit the listing URL to apply and view full description details.`;
 
-            jobs.push({
-              title,
-              company: board.toUpperCase(),
-              location: jobLoc,
-              salary: "Competitive",
-              experience,
-              education,
-              description: desc,
-              source: "Greenhouse",
-              url: item.absolute_url || "https://boards.greenhouse.io",
-              postedDate: fullDateString,
-            });
-          }
+          jobs.push({
+            title,
+            company: board.toUpperCase(),
+            location: displayLoc,
+            salary: "Competitive",
+            experience: parseExperience(title, desc),
+            education: parseEducation(desc),
+            description: desc,
+            source: "Greenhouse",
+            url: item.absolute_url || "https://boards.greenhouse.io",
+            postedDate: `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          });
         });
       }
     } catch (error) {
@@ -286,27 +267,33 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     }
   }
 
-  // Fallback: If no matches were found live, generate high-quality listings
+  // Fallback: If no live results, generate country-relevant search links (not fake jobs)
   if (jobs.length === 0) {
-    console.log("[Crawler Agent] No live matches found. Generating tailored listings...");
-    const fallbackCompanies = ["Stripe", "Vercel", "Airbnb", "Linear", "Supabase"];
-    for (let i = 0; i < 5; i++) {
-      const company = fallbackCompanies[i % fallbackCompanies.length];
+    const country = plan.filters.country || "India";
+    const role = plan.filters.role || "Software Engineer";
+    console.log(`[Crawler Agent] No live matches. Generating ${country}-specific search links as fallback...`);
+
+    const indiaCompanies = ["TCS", "Infosys", "Wipro", "HCL Technologies", "Tech Mahindra", "Razorpay", "Swiggy", "PhonePe", "Freshworks", "Zepto"];
+    const globalCompanies = ["Google", "Microsoft", "Amazon", "Meta", "Apple"];
+    const fallbackCompanies = targetCountry === "india" ? indiaCompanies : globalCompanies;
+
+    for (let i = 0; i < Math.min(8, fallbackCompanies.length); i++) {
+      const company = fallbackCompanies[i];
       jobs.push({
-        title: `Senior ${plan.filters.role}`,
+        title: `${role}`,
         company,
-        location: "Remote (Global)",
-        salary: "$120k - $160k",
-        experience: "3+ years",
-        education: "Bachelor's in Computer Science",
-        description: `Position: Senior ${plan.filters.role}\nCompany: ${company}\n\nWe are looking for a skilled professional to join our core team. Stack includes React, Node.js, and TypeScript.`,
-        source: "Career Page",
-        url: `https://www.google.com/search?q=${encodeURIComponent(company + " " + plan.filters.role + " careers")}`,
+        location: country,
+        salary: "Competitive",
+        experience: "2-5 years",
+        education: "Bachelor's Degree in Engineering or Computer Science",
+        description: `Position: ${role}\nCompany: ${company}\nLocation: ${country}\n\nClick Apply to search for live ${role} openings at ${company} in ${country}.`,
+        source: "Search",
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${company} ${role} jobs ${country} site:linkedin.com OR site:naukri.com`)}`,
         postedDate: `Today (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
       });
     }
   }
 
-  console.log(`[Crawler Agent] Completed real-time fetch. Gathered ${jobs.length} relevant live postings within last ${maxHours} hours.`);
+  console.log(`[Crawler Agent] Completed. Gathered ${jobs.length} relevant postings.`);
   return jobs;
 }
