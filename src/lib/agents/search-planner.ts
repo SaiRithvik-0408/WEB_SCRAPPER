@@ -9,6 +9,7 @@ export interface SearchPlan {
     location: string;
     country: string;
     timeWindow: number;
+    skills?: string;
   };
 }
 
@@ -23,7 +24,8 @@ export function generateSearchPlan(query: SearchQuery): SearchPlan {
       remote: query.remoteOnly,
       location: query.locations[0] || "Remote",
       country: query.country || "United States",
-      timeWindow: query.timeWindow || 24,
+      timeWindow: query.timeWindow !== undefined && query.timeWindow !== null ? query.timeWindow : 24,
+      skills: query.keywords.join(", "),
     },
   };
 }

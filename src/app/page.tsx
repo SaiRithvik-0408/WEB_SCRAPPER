@@ -68,7 +68,18 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Profile preferences state
-  const [profileForm, setProfileForm] = useState({
+  const [profileForm, setProfileForm] = useState<{
+    role: string;
+    skills: string;
+    education: string;
+    experience: string;
+    salary: number | string;
+    location: string;
+    remote: string;
+    days: number | string;
+    country: string;
+    timeWindow: number;
+  }>({
     role: "Software Engineer",
     skills: "React, Node.js, Python, TypeScript",
     education: "Bachelor's Degree",
@@ -89,6 +100,7 @@ export default function Home() {
   const [generatingPrep, setGeneratingPrep] = useState(false);
   const [resumeFile, setResumeFile] = useState<string | null>(null);
   const [parsingResume, setParsingResume] = useState(false);
+  const [resumes, setResumes] = useState<any[]>([]);
 
   // Hydration safety
   const [mounted, setMounted] = useState(false);
@@ -103,8 +115,27 @@ export default function Home() {
       fetchDashboardData();
       fetchJobs();
       fetchNotifications();
+      fetchResumes();
     }
   }, [user, filters]);
+
+  const fetchResumes = async () => {
+    try {
+      const res = await fetch("/api/resumes");
+      if (res.ok) {
+        const data = await res.json();
+        setResumes(data.resumes || []);
+        const active = data.resumes?.find((r: any) => r.isActive);
+        if (active) {
+          setResumeFile(active.fileName);
+        } else {
+          setResumeFile(null);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -115,16 +146,16 @@ export default function Home() {
           setUser(data.user);
           if (data.user.preference) {
             setProfileForm({
-              role: data.user.preference.role,
-              skills: data.user.preference.skills,
-              education: data.user.preference.education,
-              experience: data.user.preference.experience,
-              salary: data.user.preference.salary,
-              location: data.user.preference.location,
-              remote: data.user.preference.remote,
-              days: data.user.preference.days,
-              country: data.user.preference.country || "United States",
-              timeWindow: data.user.preference.timeWindow || 24,
+              role: data.user.preference.role || "",
+              skills: data.user.preference.skills || "",
+              education: data.user.preference.education || "",
+              experience: data.user.preference.experience || "",
+              salary: data.user.preference.salary !== null && data.user.preference.salary !== undefined ? data.user.preference.salary : "",
+              location: data.user.preference.location || "",
+              remote: data.user.preference.remote || "remote",
+              days: data.user.preference.days !== null && data.user.preference.days !== undefined ? data.user.preference.days : "",
+              country: data.user.preference.country || "",
+              timeWindow: data.user.preference.timeWindow !== null && data.user.preference.timeWindow !== undefined ? data.user.preference.timeWindow : 24,
             });
             setShowOnboarding(false);
           } else {
@@ -375,6 +406,62 @@ export default function Home() {
     }, 2000);
   };
 
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setParsingResume(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Content = event.target?.result as string;
+      try {
+        const res = await fetch("/api/resumes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileContent: base64Content,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          alert("Resume uploaded and parsed successfully!");
+          fetchResumes();
+          checkAuth();
+        } else {
+          const err = await res.json();
+          alert(err.error || "Failed to upload resume.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Server error uploading resume.");
+      } finally {
+        setParsingResume(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectResume = async (resumeId: string) => {
+    try {
+      const res = await fetch("/api/resumes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resumeId }),
+      });
+      if (res.ok) {
+        alert("Active resume updated!");
+        fetchResumes();
+        checkAuth();
+      } else {
+        alert("Failed to change active resume.");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#0f111a]">
@@ -498,26 +585,66 @@ export default function Home() {
           </div>
 
           <form onSubmit={handleUpdateProfile} className="space-y-4">
+            {/* Option to Upload Resume directly in onboarding */}
+            <div className="bg-indigo-600/10 border border-indigo-500/20 p-4 rounded-xl space-y-2">
+              <h3 className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                <FileText className="h-3.5 w-3.5" />
+                <span>Quick Onboarding: Upload CV</span>
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Upload your resume to automatically pre-fill skills, experience, and configure preferences.
+              </p>
+              <div className="flex items-center space-x-3 pt-1">
+                <input
+                  type="file"
+                  id="onboarding-resume-input"
+                  className="hidden"
+                  onChange={handleResumeUpload}
+                  accept=".pdf,.txt,.docx,.doc"
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("onboarding-resume-input")?.click()}
+                  disabled={parsingResume}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold py-1.5 px-3 rounded-lg shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                >
+                  {parsingResume ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      <span>Extracting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Upload CV</span>
+                    </>
+                  )}
+                </button>
+                {resumeFile && (
+                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
+                    Extracted: {resumeFile}
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Job Title</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Job Title (Optional)</label>
                 <input
                   type="text"
-                  required
                   placeholder="Software Engineer"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
-                  value={profileForm.role}
+                  value={profileForm.role || ""}
                   onChange={e => setProfileForm({ ...profileForm, role: e.target.value })}
                 />
-              </div>
-
-              <div>
+                     <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Country (Optional)</label>
                 <input
                   type="text"
                   placeholder="India, United States, UK"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
-                  value={profileForm.country}
+                  value={profileForm.country || ""}
                   onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
                 />
               </div>
@@ -528,7 +655,7 @@ export default function Home() {
                   type="text"
                   placeholder="React, Node.js, Python, TypeScript"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
-                  value={profileForm.skills}
+                  value={profileForm.skills || ""}
                   onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })}
                 />
               </div>
@@ -539,7 +666,7 @@ export default function Home() {
                   type="text"
                   placeholder="e.g. 2 years"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white placeholder-gray-600"
-                  value={profileForm.experience}
+                  value={profileForm.experience || ""}
                   onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })}
                 />
               </div>
@@ -549,8 +676,8 @@ export default function Home() {
                 <input
                   type="number"
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                  value={profileForm.salary}
-                  onChange={e => setProfileForm({ ...profileForm, salary: e.target.value ? parseInt(e.target.value, 10) : 0 })}
+                  value={profileForm.salary !== null && profileForm.salary !== undefined ? profileForm.salary : ""}
+                  onChange={e => setProfileForm({ ...profileForm, salary: e.target.value === "" ? "" : parseInt(e.target.value, 10) })}
                 />
               </div>
 
@@ -558,7 +685,7 @@ export default function Home() {
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Work Type</label>
                 <select
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                  value={profileForm.remote}
+                  value={profileForm.remote || "remote"}
                   onChange={e => setProfileForm({ ...profileForm, remote: e.target.value })}
                 >
                   <option value="remote">Remote Only</option>
@@ -572,7 +699,7 @@ export default function Home() {
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Scraping Time Window</label>
                 <select
                   className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                  value={profileForm.timeWindow}
+                  value={profileForm.timeWindow !== null && profileForm.timeWindow !== undefined ? profileForm.timeWindow : 24}
                   onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
                 >
                   <option value={-1}>All Time (Disable Age Filter)</option>
@@ -582,7 +709,7 @@ export default function Home() {
                   <option value={72}>Last 72 Hours (3 Days)</option>
                   <option value={168}>Last 7 Days (1 Week)</option>
                 </select>
-              </div>
+              </div>          </div>
             </div>
 
             <button
@@ -1266,10 +1393,18 @@ export default function Home() {
                 </p>
 
                 <div className="flex items-center space-x-4">
+                  <input
+                    type="file"
+                    id="resume-file-input"
+                    className="hidden"
+                    onChange={handleResumeUpload}
+                    accept=".pdf,.txt,.docx,.doc"
+                  />
                   <button
-                    onClick={handleResumeMockUpload}
+                    type="button"
+                    onClick={() => document.getElementById("resume-file-input")?.click()}
                     disabled={parsingResume}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-lg shadow-md transition-all flex items-center space-x-2"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-lg shadow-md transition-all flex items-center space-x-2 cursor-pointer"
                   >
                     {parsingResume ? (
                       <>
@@ -1292,6 +1427,46 @@ export default function Home() {
                     <span className="text-xs text-slate-500">No resume attached. Default profile is active.</span>
                   )}
                 </div>
+
+                {resumes && resumes.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Saved Resumes</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {resumes.map((r: any) => (
+                        <div
+                          key={r.id}
+                          className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                            r.isActive
+                              ? "bg-indigo-500/10 border-indigo-500/20 text-white"
+                              : "bg-slate-950/40 border-white/5 text-slate-400 hover:bg-slate-900/40"
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <FileText className={`h-4 w-4 ${r.isActive ? "text-indigo-400" : "text-slate-500"}`} />
+                            <div className="truncate">
+                              <p className="text-xs font-semibold truncate">{r.fileName}</p>
+                              {r.skills && (
+                                <p className="text-[10px] text-slate-500 truncate mt-0.5">Skills: {r.skills}</p>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectResume(r.id)}
+                            disabled={r.isActive}
+                            className={`text-[10px] font-bold px-2.5 py-1 rounded transition-all ${
+                              r.isActive
+                                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                                : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/5 cursor-pointer"
+                            }`}
+                          >
+                            {r.isActive ? "Active" : "Select"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Preferences Configuration Form */}
@@ -1307,7 +1482,7 @@ export default function Home() {
                     <input
                       type="text"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.role}
+                      value={profileForm.role || ""}
                       onChange={e => setProfileForm({ ...profileForm, role: e.target.value })}
                     />
                   </div>
@@ -1317,7 +1492,7 @@ export default function Home() {
                     <input
                       type="text"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.location}
+                      value={profileForm.location || ""}
                       onChange={e => setProfileForm({ ...profileForm, location: e.target.value })}
                     />
                   </div>
@@ -1327,7 +1502,7 @@ export default function Home() {
                     <input
                       type="text"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.skills}
+                      value={profileForm.skills || ""}
                       onChange={e => setProfileForm({ ...profileForm, skills: e.target.value })}
                     />
                   </div>
@@ -1337,7 +1512,7 @@ export default function Home() {
                     <input
                       type="text"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.experience}
+                      value={profileForm.experience || ""}
                       onChange={e => setProfileForm({ ...profileForm, experience: e.target.value })}
                     />
                   </div>
@@ -1347,8 +1522,8 @@ export default function Home() {
                     <input
                       type="number"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.salary}
-                      onChange={e => setProfileForm({ ...profileForm, salary: parseInt(e.target.value, 10) })}
+                      value={profileForm.salary !== null && profileForm.salary !== undefined ? profileForm.salary : ""}
+                      onChange={e => setProfileForm({ ...profileForm, salary: e.target.value === "" ? "" : parseInt(e.target.value, 10) })}
                     />
                   </div>
 
@@ -1356,7 +1531,7 @@ export default function Home() {
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Work type</label>
                     <select
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.remote}
+                      value={profileForm.remote || "remote"}
                       onChange={e => setProfileForm({ ...profileForm, remote: e.target.value })}
                     >
                       <option value="remote">Remote only</option>
@@ -1371,7 +1546,7 @@ export default function Home() {
                     <input
                       type="text"
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.country}
+                      value={profileForm.country || ""}
                       onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
                     />
                   </div>
@@ -1380,7 +1555,7 @@ export default function Home() {
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Scraping Time Window</label>
                     <select
                       className="w-full bg-slate-950/60 border border-white/5 rounded-lg px-4 py-2.5 text-xs focus:outline-none focus:border-indigo-500 transition-all text-white"
-                      value={profileForm.timeWindow}
+                      value={profileForm.timeWindow !== null && profileForm.timeWindow !== undefined ? profileForm.timeWindow : 24}
                       onChange={e => setProfileForm({ ...profileForm, timeWindow: parseInt(e.target.value, 10) })}
                     >
                       <option value={-1}>All Time (Disable Age Filter)</option>

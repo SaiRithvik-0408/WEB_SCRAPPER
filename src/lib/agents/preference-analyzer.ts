@@ -8,17 +8,18 @@ export interface SearchQuery {
   timeWindow: number;
 }
 
+
 export function analyzePreferences(preference: {
-  skills: string;
-  role: string;
-  location: string;
-  remote: string;
-  salary: number;
-  country: string;
-  timeWindow: number;
+  skills: string | null;
+  role: string | null;
+  location: string | null;
+  remote: string | null;
+  salary: number | null;
+  country: string | null;
+  timeWindow: number | null;
 }): SearchQuery {
   // Extract clean keywords from skills
-  const skillsList = preference.skills
+  const skillsList = (preference.skills || "")
     .split(",")
     .map(s => s.trim())
     .filter(s => s.length > 0);
@@ -32,23 +33,25 @@ export function analyzePreferences(preference: {
     "ai engineer": ["llm", "openai", "python", "machine learning", "pytorch", "langchain", "rag"],
   };
 
-  const normalizedRole = preference.role.toLowerCase().trim();
+  const normalizedRole = (preference.role || "").toLowerCase().trim();
   let keywords = [...skillsList];
 
   // Inject role-based keyword expansions
-  Object.keys(roleSynonyms).forEach(key => {
-    if (normalizedRole.includes(key) || key.includes(normalizedRole)) {
-      keywords = Array.from(new Set([...keywords, ...roleSynonyms[key]]));
-    }
-  });
+  if (normalizedRole) {
+    Object.keys(roleSynonyms).forEach(key => {
+      if (normalizedRole.includes(key) || key.includes(normalizedRole)) {
+        keywords = Array.from(new Set([...keywords, ...roleSynonyms[key]]));
+      }
+    });
+  }
 
   return {
     keywords,
-    role: preference.role,
-    locations: preference.location.split(",").map(l => l.trim()),
-    remoteOnly: preference.remote.toLowerCase() === "remote",
-    minSalary: preference.salary,
+    role: preference.role || "",
+    locations: (preference.location || "Remote").split(",").map(l => l.trim()),
+    remoteOnly: (preference.remote || "").toLowerCase() === "remote",
+    minSalary: preference.salary || undefined,
     country: preference.country || "United States",
-    timeWindow: preference.timeWindow || 24,
+    timeWindow: preference.timeWindow !== undefined && preference.timeWindow !== null ? preference.timeWindow : 24,
   };
 }

@@ -14,25 +14,38 @@ model User {
   password      String
   createdAt     DateTime       @default(now())
   preference    Preference?
+  resumes       Resume[]
   savedJobs     SavedJob[]
   appliedJobs   AppliedJob[]
   notifications Notification[]
 }
 
 model Preference {
-  id         String @id @default(uuid())
-  userId     String @unique
-  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills     String
-  education  String
-  experience String
-  salary     Float
-  location   String
-  role       String
-  days       Int
-  remote     String
-  country    String @default("United States")
-  timeWindow Int    @default(24)
+  id         String  @id @default(uuid())
+  userId     String  @unique
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills     String?
+  education  String?
+  experience String?
+  salary     Float?
+  location   String?
+  role       String?
+  days       Int?
+  remote     String?
+  country    String? @default("United States")
+  timeWindow Int?    @default(24)
+}
+
+model Resume {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileContent String   // Base64 file content or text
+  skills      String?  // Parsed skills
+  experience  String?  // Parsed experience
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 model Job {

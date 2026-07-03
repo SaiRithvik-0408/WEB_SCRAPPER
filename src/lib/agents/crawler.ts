@@ -87,10 +87,10 @@ function parseAgeInHours(dateText: string): number {
 
 export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   const jobs: CrawledJob[] = [];
-  const targetRole = plan.filters.role.toLowerCase();
-  const maxHours = plan.filters.timeWindow || 24;
+  const targetRole = (plan.filters.role || "").toLowerCase();
+  const maxHours = plan.filters.timeWindow !== undefined && plan.filters.timeWindow !== null ? plan.filters.timeWindow : 24;
 
-  console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role}" in ${plan.filters.country} (time limit: last ${maxHours} hours)...`);
+  console.log(`[Crawler Agent] Commencing real-time crawl: "${plan.filters.role || "Any"}" in ${plan.filters.country} (time limit: last ${maxHours} hours)...`);
 
   // Mode 1: Fetch from live public LinkedIn Guest search API
   // Paginate 8 pages (start=0, 25, 50, 75, 100, 125, 150, 175) to compile up to 200 listings
@@ -98,8 +98,16 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
   const pages = [0, 25, 50, 75, 100, 125, 150, 175];
   for (const pageStart of pages) {
     try {
-      const queryKeyword = encodeURIComponent(plan.filters.role);
-      const queryLoc = encodeURIComponent(plan.filters.location || plan.filters.country || "Remote");
+      const searchRole = plan.filters.role || "";
+      const queryKeyword = encodeURIComponent(searchRole);
+      
+      let searchLoc = plan.filters.location || "Remote";
+      if (searchLoc.toLowerCase() === "remote" && plan.filters.country) {
+        searchLoc = `Remote, ${plan.filters.country}`;
+      } else if (plan.filters.country && !searchLoc.toLowerCase().includes(plan.filters.country.toLowerCase())) {
+        searchLoc = `${searchLoc}, ${plan.filters.country}`;
+      }
+      const queryLoc = encodeURIComponent(searchLoc);
       const url = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${queryKeyword}&location=${queryLoc}&start=${pageStart}&sortBy=DD`;
       
       console.log(`[Crawler Agent] Page ${pageStart / 25 + 1} - Querying LinkedIn Guest Search: ${url}`);
@@ -135,7 +143,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             const ageInHours = parseAgeInHours(dateStr);
 
             // Filter by user's timeWindow (hours)
-            if (ageInHours > maxHours) {
+            if (maxHours > 0 && ageInHours > maxHours) {
               continue;
             }
 
@@ -180,7 +188,8 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         const tags = Array.isArray(item.tags) ? item.tags.join(", ") : "";
 
         // Check if job matches target role keyword
-        const matchesRole = title.toLowerCase().includes(targetRole) || 
+        const matchesRole = !targetRole ||
+                            title.toLowerCase().includes(targetRole) || 
                             tags.toLowerCase().includes(targetRole) ||
                             desc.toLowerCase().includes(targetRole);
 
@@ -189,6 +198,16 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
           const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
 
           if (maxHours > 0 && ageInHours > maxHours) return;
+
+          const jobLoc = item.location || "Remote";
+          if (plan.filters.country && plan.filters.country.toLowerCase() !== "united states") {
+            const countryLower = plan.filters.country.toLowerCase();
+            const jobLocLower = jobLoc.toLowerCase();
+            const isRemote = jobLocLower.includes("remote") || jobLocLower.includes("global");
+            if (!jobLocLower.includes(countryLower) && !isRemote) {
+              return;
+            }
+          }
 
           const experience = parseExperience(title, desc);
           const education = parseEducation(desc);
@@ -224,7 +243,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
 
         listings.forEach((item: any) => {
           const title = item.title || "";
-          const matchesRole = title.toLowerCase().includes(targetRole);
+          const matchesRole = !targetRole || title.toLowerCase().includes(targetRole);
 
           if (matchesRole) {
             const postDate = item.updated_at ? new Date(item.updated_at) : new Date();
@@ -232,7 +251,17 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
 
             if (maxHours > 0 && ageInHours > maxHours) return;
 
-            const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${item.location?.name || "Global / Remote"}\n\nPlease visit the listing URL to apply and view full description details.`;
+            const jobLoc = item.location?.name || "Global / Remote";
+            if (plan.filters.country && plan.filters.country.toLowerCase() !== "united states") {
+              const countryLower = plan.filters.country.toLowerCase();
+              const jobLocLower = jobLoc.toLowerCase();
+              const isRemote = jobLocLower.includes("remote") || jobLocLower.includes("global");
+              if (!jobLocLower.includes(countryLower) && !isRemote) {
+                return;
+              }
+            }
+
+            const desc = `Position: ${title}\nCompany: ${board.toUpperCase()}\nLocation: ${jobLoc}\n\nPlease visit the listing URL to apply and view full description details.`;
             const experience = parseExperience(title, desc);
             const education = parseEducation(desc);
             const fullDateString = `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -240,7 +269,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             jobs.push({
               title,
               company: board.toUpperCase(),
-              location: item.location?.name || "Global / Remote",
+              location: jobLoc,
               salary: "Competitive",
               experience,
               education,

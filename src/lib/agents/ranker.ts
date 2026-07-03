@@ -7,18 +7,18 @@ export interface RankedJob extends CrawledJob {
 export function rankJobs(
   jobs: CrawledJob[],
   preference: {
-    skills: string;
-    role: string;
-    experience: string;
+    skills: string | null;
+    role: string | null;
+    experience: string | null;
   }
 ): RankedJob[] {
-  const userSkills = preference.skills
+  const userSkills = (preference.skills || "")
     .toLowerCase()
     .split(",")
     .map(s => s.trim())
     .filter(s => s.length > 0);
 
-  const userRoleKeywords = preference.role.toLowerCase().split(/\s+/);
+  const userRoleKeywords = (preference.role || "").toLowerCase().split(/\s+/).filter(w => w.length > 0);
 
   return jobs.map(job => {
     let score = 50; // Base score
@@ -50,8 +50,8 @@ export function rankJobs(
     }
 
     // Check experience matches
-    const userExpMatch = preference.experience.match(/\d+/);
-    const jobExpMatch = job.experience.match(/\d+/);
+    const userExpMatch = preference.experience ? preference.experience.match(/\d+/) : null;
+    const jobExpMatch = job.experience ? job.experience.match(/\d+/) : null;
     if (userExpMatch && jobExpMatch) {
       const userYears = parseInt(userExpMatch[0], 10);
       const jobYears = parseInt(jobExpMatch[0], 10);
