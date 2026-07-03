@@ -325,6 +325,24 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     const globalCompanies = ["Google", "Microsoft", "Amazon", "Meta", "Apple"];
     const fallbackCompanies = targetCountry === "india" ? indiaCompanies : globalCompanies;
 
+    const careerUrls: { [key: string]: string } = {
+      Google: "https://careers.google.com",
+      Microsoft: "https://careers.microsoft.com",
+      Amazon: "https://www.amazon.jobs",
+      Meta: "https://www.metacareers.com",
+      Apple: "https://www.apple.com/careers",
+      TCS: "https://www.tcs.com/careers",
+      Infosys: "https://www.infosys.com/careers.html",
+      Wipro: "https://careers.wipro.com",
+      "HCL Technologies": "https://www.hcltech.com/careers",
+      "Tech Mahindra": "https://careers.techmahindra.com",
+      Razorpay: "https://razorpay.com/jobs",
+      Swiggy: "https://careers.swiggy.com",
+      PhonePe: "https://www.phonepe.com/careers",
+      Freshworks: "https://www.freshworks.com/company/careers",
+      Zepto: "https://www.zepto.careers"
+    };
+
     for (let i = 0; i < Math.min(8, fallbackCompanies.length); i++) {
       const company = fallbackCompanies[i];
       jobs.push({
@@ -336,7 +354,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         education: "Bachelor's Degree in Engineering or Computer Science",
         description: `Position: ${role}\nCompany: ${company}\nLocation: ${country}\n\nClick Apply to search for live ${role} openings at ${company} in ${country}.`,
         source: "Search",
-        url: `https://www.google.com/search?q=${encodeURIComponent(`${company} ${role} jobs ${country} site:linkedin.com OR site:naukri.com`)}`,
+        url: careerUrls[company] || `https://www.google.com/search?q=${encodeURIComponent(`${company} careers`)}`,
         postedDate: `Today (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
       });
     }

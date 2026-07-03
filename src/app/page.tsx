@@ -192,6 +192,12 @@ export default function Home() {
 
   // Tool outputs
   const [selectedJobForTool, setSelectedJobForTool] = useState<any>(null);
+  const [detailsSubTab, setDetailsSubTab] = useState<"info" | "apply">("info");
+
+  const handleSelectJob = (job: any) => {
+    setSelectedJobForTool(job);
+    setDetailsSubTab("info");
+  };
   const [coverLetter, setCoverLetter] = useState("");
   const [generatingLetter, setGeneratingLetter] = useState(false);
   const [prepQuestions, setPrepQuestions] = useState<any[]>([]);
@@ -1405,7 +1411,7 @@ export default function Home() {
                     jobs.map((job: any) => (
                       <div
                         key={job.id}
-                        onClick={() => setSelectedJobForTool(job)}
+                        onClick={() => handleSelectJob(job)}
                         className={`glass p-5 rounded-xl border transition-all cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
                           selectedJobForTool?.id === job.id ? "border-[#6366f1] bg-[#6366f1]/5" : "border-white/5 hover:border-white/10"
                         }`}
@@ -1504,86 +1510,126 @@ export default function Home() {
                         <p className="text-xs text-slate-400 mt-0.5">{selectedJobForTool.location} • {selectedJobForTool.salary}</p>
                       </div>
 
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Key parameters</h4>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div className="bg-slate-900/60 p-2 rounded border border-white/5">
-                              <span className="text-[10px] text-slate-500 block">Experience</span>
-                              <span className="font-semibold text-slate-200">{selectedJobForTool.experience}</span>
-                            </div>
-                            <div className="bg-slate-900/60 p-2 rounded border border-white/5">
-                              <span className="text-[10px] text-slate-500 block">Education</span>
-                              <span className="font-semibold text-slate-200 truncate">{selectedJobForTool.education}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
-                            <Sparkles className="h-3.5 w-3.5 text-yellow-400 animate-pulse" />
-                            <span>ATS Compatibility Analysis</span>
-                          </h4>
-                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] text-slate-400">Match score against active resume</span>
-                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                                selectedJobForTool.matchScore >= 80 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                              }`}>
-                                {selectedJobForTool.matchScore}% Compatibility
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${
-                                  selectedJobForTool.matchScore >= 80 ? "bg-emerald-500" : "bg-indigo-500"
-                                }`}
-                                style={{ width: `${selectedJobForTool.matchScore}%` }}
-                              ></div>
-                            </div>
-                            <p className="text-[10px] text-slate-500 leading-normal">
-                              Determined by analyzing semantic context, keyword density, and alignment with your active resume: <span className="text-slate-300 font-semibold">{resumeFile || "Default Settings"}</span>.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Description summary</h4>
-                          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
-                            {selectedJobForTool.description}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2 pt-4 border-t border-white/5">
+                      <div className="flex space-x-1 bg-slate-900/60 p-1 rounded-lg border border-white/5 mb-4">
                         <button
-                          onClick={() => handleApplyJob(selectedJobForTool.url)}
-                          className="w-full bg-[#6366f1] hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-3 rounded-lg flex items-center justify-center space-x-1"
-                        >
-                          <span>Apply (Visit Career Board)</span>
-                          <ArrowUpRight className="h-3.5 w-3.5" />
-                        </button>
-
-                        <button
-                          onClick={() => handleToggleApply(selectedJobForTool.id, selectedJobForTool.applied)}
-                          className={`w-full font-bold text-xs py-2.5 px-3 rounded-lg border transition-all flex items-center justify-center space-x-1.5 ${
-                            selectedJobForTool.applied
-                              ? "bg-emerald-600 border-emerald-500 text-white"
-                              : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
+                          onClick={() => setDetailsSubTab("info")}
+                          className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                            detailsSubTab === "info" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-slate-200"
                           }`}
                         >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          <span>{selectedJobForTool.applied ? "Marked as Applied" : "Mark as Applied"}</span>
+                          Details & ATS Analysis
                         </button>
-
                         <button
-                          onClick={() => handleGeneratePrepQuestions(selectedJobForTool)}
-                          className="w-full bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 font-semibold text-xs py-2.5 px-3 rounded-lg border border-indigo-500/20 flex items-center justify-center space-x-1.5"
+                          onClick={() => setDetailsSubTab("apply")}
+                          className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                            detailsSubTab === "apply" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-slate-200"
+                          }`}
                         >
-                          <HelpCircle className="h-3.5 w-3.5" />
-                          <span>AI Interview Preparation Assistant</span>
+                          In-App Apply Portal
                         </button>
                       </div>
+
+                      {detailsSubTab === "info" ? (
+                        <>
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Key parameters</h4>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="bg-slate-900/60 p-2 rounded border border-white/5">
+                                  <span className="text-[10px] text-slate-500 block">Experience</span>
+                                  <span className="font-semibold text-slate-200">{selectedJobForTool.experience}</span>
+                                </div>
+                                <div className="bg-slate-900/60 p-2 rounded border border-white/5">
+                                  <span className="text-[10px] text-slate-500 block">Education</span>
+                                  <span className="font-semibold text-slate-200 truncate">{selectedJobForTool.education}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-yellow-400 animate-pulse" />
+                                <span>ATS Compatibility Analysis</span>
+                              </h4>
+                              <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] text-slate-400">Match score against active resume</span>
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                    selectedJobForTool.matchScore >= 80 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                                  }`}>
+                                    {selectedJobForTool.matchScore}% Compatibility
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      selectedJobForTool.matchScore >= 80 ? "bg-emerald-500" : "bg-indigo-500"
+                                    }`}
+                                    style={{ width: `${selectedJobForTool.matchScore}%` }}
+                                  ></div>
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-normal">
+                                  Determined by analyzing semantic context, keyword density, and alignment with your active resume: <span className="text-slate-300 font-semibold">{resumeFile || "Default Settings"}</span>.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Description summary</h4>
+                              <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                {selectedJobForTool.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-2 pt-4 border-t border-white/5">
+                            <button
+                              onClick={() => handleApplyJob(selectedJobForTool.url)}
+                              className="w-full bg-[#6366f1] hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-3 rounded-lg flex items-center justify-center space-x-1"
+                            >
+                              <span>Apply (Visit Career Board)</span>
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleApply(selectedJobForTool.id, selectedJobForTool.applied)}
+                              className={`w-full font-bold text-xs py-2.5 px-3 rounded-lg border transition-all flex items-center justify-center space-x-1.5 ${
+                                selectedJobForTool.applied
+                                  ? "bg-emerald-600 border-emerald-500 text-white"
+                                  : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
+                              }`}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              <span>{selectedJobForTool.applied ? "Marked as Applied" : "Mark as Applied"}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleGeneratePrepQuestions(selectedJobForTool)}
+                              className="w-full bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 font-semibold text-xs py-2.5 px-3 rounded-lg border border-indigo-500/20 flex items-center justify-center space-x-1.5"
+                            >
+                              <HelpCircle className="h-3.5 w-3.5" />
+                              <span>AI Interview Preparation Assistant</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-3 h-[500px] flex flex-col">
+                          <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2.5 rounded border border-white/5 flex items-center justify-between">
+                            <span>Showing secure in-app preview. Career page security might require opening in a new tab.</span>
+                            <button
+                              onClick={() => handleApplyJob(selectedJobForTool.url)}
+                              className="text-indigo-400 hover:underline font-bold"
+                            >
+                              Open in New Tab ↗
+                            </button>
+                          </div>
+                          <iframe
+                            src={selectedJobForTool.url}
+                            className="w-full flex-1 rounded-lg border border-white/10 bg-slate-950 shadow-inner"
+                            title="In-App Job Posting Portal"
+                          />
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-center py-12">
