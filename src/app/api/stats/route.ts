@@ -16,10 +16,14 @@ export async function GET() {
     const appliedJobs = await prisma.appliedJob.count({ where: { userId } });
     const savedJobs = await prisma.savedJob.count({ where: { userId, saved: true } });
     
-    // Recommended (simulated match >= 80%)
-    const recommendedCount = Math.max(12, Math.round(totalJobs * 0.45));
-    const newJobs = Math.max(4, Math.round(totalJobs * 0.15));
-
+    // Recommended (realistically capped by total jobs in DB)
+    const recommendedCount = totalJobs > 0 
+      ? Math.min(totalJobs, Math.max(1, Math.round(totalJobs * 0.45)))
+      : 0;
+    const newJobs = totalJobs > 0 
+      ? Math.min(totalJobs, Math.max(1, Math.round(totalJobs * 0.15)))
+      : 0;
+    
     // Prepare chart data
     const applicationsData = [
       { name: "Mon", count: 2 },
@@ -58,8 +62,8 @@ export async function GET() {
 
     return NextResponse.json({
       stats: {
-        totalJobs: totalJobs > 0 ? totalJobs : 147,
-        newJobs: newJobs > 0 ? newJobs : 18,
+        totalJobs,
+        newJobs,
         applied: appliedJobs,
         saved: savedJobs,
         recommended: recommendedCount,
