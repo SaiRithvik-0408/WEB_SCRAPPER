@@ -2,29 +2,48 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// Basic regex/keyword parser to extract profile elements from resume text
 function parseResumeText(text: string) {
-  const skillsList = [
-    "react", "node.js", "node", "python", "typescript", "javascript", "go", "golang", 
-    "sql", "postgres", "mongodb", "aws", "docker", "kubernetes", "java", "c++", 
-    "ruby", "rails", "php", "laravel", "vue", "angular", "tailwind", "next.js", 
-    "nextjs", "pinecone", "langgraph", "llm", "llms", "rest api", "microservices"
+  const skillsConfig = [
+    { pattern: /\breact\b/i, display: "React" },
+    { pattern: /\bnode\.js\b|\bnode\b/i, display: "Node.js" },
+    { pattern: /\bpython\b/i, display: "Python" },
+    { pattern: /\btypescript\b|\bts\b/i, display: "TypeScript" },
+    { pattern: /\bjavascript\b|\bjs\b/i, display: "JavaScript" },
+    { pattern: /\bgo\b|\bgolang\b/i, display: "Go" },
+    { pattern: /\bsql\b/i, display: "SQL" },
+    { pattern: /\bpostgres\b|\bpostgresql\b/i, display: "PostgreSQL" },
+    { pattern: /\bmongodb\b/i, display: "MongoDB" },
+    { pattern: /\baws\b/i, display: "AWS" },
+    { pattern: /\bdocker\b/i, display: "Docker" },
+    { pattern: /\bkubernetes\b|\bk8s\b/i, display: "Kubernetes" },
+    { pattern: /\bjava\b/i, display: "Java" },
+    { pattern: /\bc\+\+\b/i, display: "C++" },
+    { pattern: /\bruby\b/i, display: "Ruby" },
+    { pattern: /\brails\b/i, display: "Rails" },
+    { pattern: /\bphp\b/i, display: "PHP" },
+    { pattern: /\blaravel\b/i, display: "Laravel" },
+    { pattern: /\bvue\b|\bvue\.js\b/i, display: "Vue.js" },
+    { pattern: /\bangular\b/i, display: "Angular" },
+    { pattern: /\btailwind\b|\btailwindcss\b/i, display: "Tailwind CSS" },
+    { pattern: /\bnext\.js\b|\bnextjs\b/i, display: "Next.js" },
+    { pattern: /\bpinecone\b/i, display: "Pinecone" },
+    { pattern: /\blanggraph\b/i, display: "LangGraph" },
+    { pattern: /\bllm\b|\bllms\b/i, display: "LLM" },
+    { pattern: /\brest api\b|\brestful api\b/i, display: "REST API" },
+    { pattern: /\bmicroservices\b/i, display: "Microservices" }
   ];
+
   const foundSkills: string[] = [];
-  const lower = text.toLowerCase();
-  
-  skillsList.forEach(s => {
-    if (lower.includes(s)) {
-      if (s === "node") foundSkills.push("Node.js");
-      else if (s === "nextjs") foundSkills.push("Next.js");
-      else if (s === "golang") foundSkills.push("Go");
-      else foundSkills.push(s.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "));
+  skillsConfig.forEach(cfg => {
+    if (cfg.pattern.test(text)) {
+      foundSkills.push(cfg.display);
     }
   });
 
   const uniqueSkills = Array.from(new Set(foundSkills));
 
   let experience = "3 years";
+  const lower = text.toLowerCase();
   const expMatch = lower.match(/(\d+)\+?\s*years?\s*(?:of)?\s*experience/);
   if (expMatch) {
     experience = `${expMatch[1]} years`;
@@ -204,6 +223,68 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true, resume: updatedResume });
   } catch (error: any) {
     console.error("Activate resume error:", error);
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getSessionUser();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "Missing resume ID" }, { status: 400 });
+    }
+
+    const userId = session.userId;
+
+    const resume = await prisma.resume.findFirst({
+      where: { id, userId },
+    });
+
+    if (!resume) {
+      return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+    }
+
+    await prisma.resume.delete({
+      where: { id },
+    });
+
+    if (resume.isActive) {
+      const nextActive = await prisma.resume.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+      if (nextActive) {
+        await prisma.resume.update({
+          where: { id: nextActive.id },
+          data: { isActive: true },
+        });
+
+        await prisma.preference.update({
+          where: { userId },
+          data: {
+            skills: nextActive.skills || "",
+            experience: nextActive.experience || "",
+          },
+        });
+      } else {
+        await prisma.preference.update({
+          where: { userId },
+          data: {
+            skills: "",
+            experience: "",
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Delete resume error:", error);
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

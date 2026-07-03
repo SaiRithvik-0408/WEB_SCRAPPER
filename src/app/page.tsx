@@ -20,6 +20,8 @@ import {
   Terminal,
   ArrowUpRight,
   Plus,
+  Trash2,
+  Eye,
 } from "lucide-react";
 import {
   AreaChart,
@@ -35,6 +37,19 @@ import {
   Pie,
   Cell,
 } from "recharts";
+
+function getResumeATSStrength(resume: any) {
+  if (!resume) return 0;
+  let score = 70;
+  const skillsArray = resume.skills ? resume.skills.split(",") : [];
+  if (skillsArray.length > 5) score += 15;
+  else score += skillsArray.length * 2;
+
+  if (resume.experience && resume.experience.toLowerCase().includes("year")) {
+    score += 10;
+  }
+  return Math.min(score, 98);
+}
 
 export default function Home() {
   // Auth state
@@ -101,6 +116,56 @@ export default function Home() {
   const [resumeFile, setResumeFile] = useState<string | null>(null);
   const [parsingResume, setParsingResume] = useState(false);
   const [resumes, setResumes] = useState<any[]>([]);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const handleViewResume = (resume: any) => {
+    try {
+      const link = document.createElement("a");
+      link.href = resume.fileContent;
+      link.download = resume.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Downloading resume...", "info");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to view/download resume", "error");
+    }
+  };
+
+  const handleDeleteResume = async (resumeId: string) => {
+    try {
+      const res = await fetch("/api/resumes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: resumeId }),
+      });
+      if (res.ok) {
+        showToast("Resume deleted successfully!", "success");
+        fetchResumes();
+        checkAuth();
+        // Rerun the crawler/screener
+        runAIScraper();
+      } else {
+        const err = await res.json();
+        showToast(err.error || "Failed to delete resume.", "error");
+      }
+    } catch (e) {
+      console.error(e);
+      showToast("Server error deleting resume.", "error");
+    }
+  };
 
   // Hydration safety
   const [mounted, setMounted] = useState(false);
@@ -296,14 +361,16 @@ export default function Home() {
         body: JSON.stringify(profileForm),
       });
       if (res.ok) {
-        alert("Preferences updated successfully!");
+        showToast("Preferences updated successfully!", "success");
         setShowOnboarding(false);
         checkAuth();
         fetchJobs();
         fetchDashboardData();
+        runAIScraper();
       }
     } catch (e) {
       console.error(e);
+      showToast("Failed to update preferences.", "error");
     }
   };
 
@@ -402,7 +469,8 @@ export default function Home() {
         experience: "4 years",
       });
       setParsingResume(false);
-      alert("AI Parser: Extracted 11 skills, 4 years experience, and pre-filled preferences successfully!");
+      showToast("AI Parser: Extracted 11 skills, 4 years experience, and pre-filled preferences successfully!", "success");
+      runAIScraper();
     }, 2000);
   };
 
@@ -425,17 +493,17 @@ export default function Home() {
         });
 
         if (res.ok) {
-          const data = await res.json();
-          alert("Resume uploaded and parsed successfully!");
+          showToast("Resume uploaded and parsed successfully!", "success");
           fetchResumes();
           checkAuth();
+          runAIScraper();
         } else {
           const err = await res.json();
-          alert(err.error || "Failed to upload resume.");
+          showToast(err.error || "Failed to upload resume.", "error");
         }
       } catch (err) {
         console.error(err);
-        alert("Server error uploading resume.");
+        showToast("Server error uploading resume.", "error");
       } finally {
         setParsingResume(false);
       }
@@ -451,14 +519,16 @@ export default function Home() {
         body: JSON.stringify({ id: resumeId }),
       });
       if (res.ok) {
-        alert("Active resume updated!");
+        showToast("Active resume updated!", "success");
         fetchResumes();
         checkAuth();
+        runAIScraper();
       } else {
-        alert("Failed to change active resume.");
+        showToast("Failed to change active resume.", "error");
       }
     } catch (e) {
       console.error(e);
+      showToast("Server error updating active resume.", "error");
     }
   };
 
@@ -1223,7 +1293,7 @@ export default function Home() {
                                 : job.matchScore >= 70 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
                                 : "bg-slate-800 text-slate-400"
                             }`}>
-                              {job.matchScore}% Match
+                              {job.matchScore}% ATS Score
                             </span>
                           </div>
 
@@ -1319,6 +1389,34 @@ export default function Home() {
                               <span className="text-[10px] text-slate-500 block">Education</span>
                               <span className="font-semibold text-slate-200 truncate">{selectedJobForTool.education}</span>
                             </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-yellow-400 animate-pulse" />
+                            <span>ATS Compatibility Analysis</span>
+                          </h4>
+                          <div className="bg-slate-950/60 p-3 rounded-lg border border-white/5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-slate-400">Match score against active resume</span>
+                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                selectedJobForTool.matchScore >= 80 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                              }`}>
+                                {selectedJobForTool.matchScore}% Compatibility
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  selectedJobForTool.matchScore >= 80 ? "bg-emerald-500" : "bg-indigo-500"
+                                }`}
+                                style={{ width: `${selectedJobForTool.matchScore}%` }}
+                              ></div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 leading-normal">
+                              Determined by analyzing semantic context, keyword density, and alignment with your active resume: <span className="text-slate-300 font-semibold">{resumeFile || "Default Settings"}</span>.
+                            </p>
                           </div>
                         </div>
 
@@ -1441,27 +1539,55 @@ export default function Home() {
                               : "bg-slate-950/40 border-white/5 text-slate-400 hover:bg-slate-900/40"
                           }`}
                         >
-                          <div className="flex items-center space-x-3 min-w-0">
-                            <FileText className={`h-4 w-4 ${r.isActive ? "text-indigo-400" : "text-slate-500"}`} />
-                            <div className="truncate">
-                              <p className="text-xs font-semibold truncate">{r.fileName}</p>
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                            <FileText className={`h-4 w-4 shrink-0 ${r.isActive ? "text-indigo-400" : "text-slate-500"}`} />
+                            <div className="truncate pr-2">
+                              <div className="flex items-center space-x-2">
+                                <p className="text-xs font-semibold truncate">{r.fileName}</p>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  getResumeATSStrength(r) >= 85 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                                }`}>
+                                  ATS: {getResumeATSStrength(r)}%
+                                </span>
+                              </div>
                               {r.skills && (
                                 <p className="text-[10px] text-slate-500 truncate mt-0.5">Skills: {r.skills}</p>
                               )}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectResume(r.id)}
-                            disabled={r.isActive}
-                            className={`text-[10px] font-bold px-2.5 py-1 rounded transition-all ${
-                              r.isActive
-                                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                                : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/5 cursor-pointer"
-                            }`}
-                          >
-                            {r.isActive ? "Active" : "Select"}
-                          </button>
+
+                          <div className="flex items-center space-x-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleViewResume(r)}
+                              className="p-1.5 rounded bg-slate-900 border border-white/5 text-slate-400 hover:text-white hover:border-white/10 transition-all cursor-pointer animate-fade-in"
+                              title="Download & View"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteResume(r.id)}
+                              className="p-1.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
+                              title="Delete Resume"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSelectResume(r.id)}
+                              disabled={r.isActive}
+                              className={`text-[10px] font-bold px-2.5 py-1.5 rounded transition-all ${
+                                r.isActive
+                                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                                  : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/5 cursor-pointer"
+                              }`}
+                            >
+                              {r.isActive ? "Active" : "Select"}
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1739,6 +1865,28 @@ export default function Home() {
 
         </main>
       </div>
+
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[9999] flex items-center space-x-3 bg-slate-950/95 border border-white/10 glass px-4 py-3 rounded-xl shadow-2xl transition-all duration-300">
+          {toast.type === "success" && (
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+              <CheckCircle className="h-4 w-4" />
+            </div>
+          )}
+          {toast.type === "error" && (
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/20 text-rose-400">
+              <HelpCircle className="h-4 w-4 animate-pulse" />
+            </div>
+          )}
+          {toast.type === "info" && (
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400">
+              <Bell className="h-4 w-4 animate-bounce" />
+            </div>
+          )}
+          <span className="text-xs font-semibold text-slate-200">{toast.message}</span>
+          <button onClick={() => setToast(null)} className="text-slate-500 hover:text-slate-300 text-[10px] pl-2 font-bold">✕</button>
+        </div>
+      )}
     </div>
   );
 }
