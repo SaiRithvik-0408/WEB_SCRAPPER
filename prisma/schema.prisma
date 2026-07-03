@@ -60,6 +60,7 @@ model Job {
   source        String
   url           String
   postedDate    String
+  easyApply     Boolean?       @default(false)
   scrapedTime   DateTime       @default(now())
   savedBy       SavedJob[]
   appliedBy     AppliedJob[]

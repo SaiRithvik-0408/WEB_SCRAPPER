@@ -11,6 +11,7 @@ export interface CrawledJob {
   source: string;
   url: string;
   postedDate: string;
+  easyApply?: boolean;
 }
 
 // Helper to extract experience from title/description
@@ -152,18 +153,21 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
             const experience = parseExperience(title, fullDesc);
             const education = parseEducation(fullDesc);
 
-            jobs.push({
-              title,
-              company,
-              location,
-              salary: "Competitive",
-              experience,
-              education,
-              description: fullDesc,
-              source: "LinkedIn",
-              url,
-              postedDate: `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
-            });
+             const isEasyApply = card.toLowerCase().includes("easy-apply") || card.toLowerCase().includes("easy apply") || card.toLowerCase().includes("easy_apply");
+
+             jobs.push({
+               title,
+               company,
+               location,
+               salary: "Competitive",
+               experience,
+               education,
+               description: fullDesc,
+               source: "LinkedIn",
+               url,
+               postedDate: `${dateStr} (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
+               easyApply: isEasyApply,
+             });
           }
         }
       }

@@ -220,16 +220,19 @@ export default function Home() {
 
   const handleViewResume = (resume: any) => {
     try {
-      const link = document.createElement("a");
-      link.href = resume.fileContent;
-      link.download = resume.fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast("Downloading resume...", "info");
+      const newTab = window.open();
+      if (newTab) {
+        newTab.document.write(
+          `<iframe width='100%' height='100%' style='border:none;margin:0;padding:0;' src='${resume.fileContent}'></iframe>`
+        );
+        newTab.document.title = resume.fileName;
+        showToast("Opening resume viewer in a new tab...", "info");
+      } else {
+        showToast("Pop-up blocked! Please allow popups to view.", "error");
+      }
     } catch (e) {
       console.error(e);
-      showToast("Failed to view/download resume", "error");
+      showToast("Failed to view resume", "error");
     }
   };
 
@@ -1421,13 +1424,18 @@ export default function Home() {
                             <h3 className="font-bold text-base text-slate-100 hover:text-[#6366f1] transition-all">
                               {job.title}
                             </h3>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               job.matchScore >= 85 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                 : job.matchScore >= 70 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
                                 : "bg-slate-800 text-slate-400"
                             }`}>
                               {job.matchScore}% ATS Score
                             </span>
+                            {job.easyApply && (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1 animate-pulse">
+                                <span>⚡ Easy Apply</span>
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 font-semibold">

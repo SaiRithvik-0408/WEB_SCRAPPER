@@ -72,6 +72,7 @@ export async function POST() {
             source: job.source,
             url: job.url,
             postedDate: job.postedDate,
+            easyApply: job.easyApply || false,
           },
         });
       }
