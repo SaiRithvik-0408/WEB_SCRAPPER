@@ -51,6 +51,89 @@ function getResumeATSStrength(resume: any) {
   return Math.min(score, 98);
 }
 
+const jobSearchPlatforms = [
+  {
+    category: "General & Regional Giants",
+    items: [
+      {
+        name: "Indeed",
+        description: "Largest job aggregator globally with simple, fast applications.",
+        getUrl: (role: string, country: string) => {
+          const q = encodeURIComponent(role);
+          const l = encodeURIComponent(country);
+          return `https://www.indeed.com/jobs?q=${q}&l=${l}`;
+        }
+      },
+      {
+        name: "Naukri.com",
+        description: "Most popular platform in India for corporate and mass hiring.",
+        getUrl: (role: string) => {
+          return `https://www.naukri.com/${encodeURIComponent(role.toLowerCase().replace(/\s+/g, "-"))}-jobs`;
+        }
+      },
+      {
+        name: "LinkedIn",
+        description: "Professional network where you can message recruiters directly.",
+        getUrl: (role: string, country: string) => {
+          return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(country)}`;
+        }
+      }
+    ]
+  },
+  {
+    category: "Tech & Remote Work",
+    items: [
+      {
+        name: "Foundit (Monster APAC)",
+        description: "Great for IT and engineering roles in India.",
+        getUrl: (role: string) => {
+          return `https://www.foundit.in/s/jobs?query=${encodeURIComponent(role)}`;
+        }
+      },
+      {
+        name: "We Work Remotely",
+        description: "Top site for global, 100% remote digital jobs.",
+        getUrl: (role: string) => {
+          return `https://weworkremotely.com/remote-jobs/search?term=${encodeURIComponent(role)}`;
+        }
+      },
+      {
+        name: "FlexJobs",
+        description: "Vetted, scam-free remote and flexible freelance listings.",
+        getUrl: (role: string) => {
+          return `https://www.flexjobs.com/search?search=${encodeURIComponent(role)}`;
+        }
+      }
+    ]
+  },
+  {
+    category: "Startups & Corporate Culture",
+    items: [
+      {
+        name: "Wellfound (AngelList)",
+        description: "Best platform to find startup jobs with transparent salary ranges.",
+        getUrl: (role: string) => {
+          return `https://wellfound.com/jobs?role=${encodeURIComponent(role)}`;
+        }
+      },
+      {
+        name: "Glassdoor",
+        description: "Offers job listings paired with real employee salary data and reviews.",
+        getUrl: (role: string, country: string) => {
+          return `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encodeURIComponent(role)}&locT=C&locN=${encodeURIComponent(country)}`;
+        }
+      },
+      {
+        name: "AmbitionBox",
+        description: "Indian platform for company reviews, salary insights, and interview prep.",
+        getUrl: (role: string) => {
+          return `https://www.ambitionbox.com/jobs/search?designation=${encodeURIComponent(role)}`;
+        }
+      }
+    ]
+  }
+];
+
 export default function Home() {
   // Auth state
   const [user, setUser] = useState<any>(null);
@@ -1260,6 +1343,50 @@ export default function Home() {
                   >
                     Reset Filters
                   </button>
+                </div>
+              </div>
+
+              {/* Multi-Platform Search Channels */}
+              <div className="glass p-5 rounded-xl border border-white/5 space-y-4 animate-fade-in">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-4 w-4 text-indigo-450 animate-pulse" />
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                      Multi-Platform 1-Click Search Channels
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    Parameters: {profileForm.role || "Software Engineer"} ({profileForm.country || "India"})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {jobSearchPlatforms.map((cat, idx) => (
+                    <div key={idx} className="space-y-2.5">
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300/80 border-l-2 border-indigo-500 pl-2">
+                        {cat.category}
+                      </h4>
+                      <div className="space-y-2">
+                        {cat.items.map((platform, pIdx) => (
+                          <a
+                            key={pIdx}
+                            href={platform.getUrl(profileForm.role || "Software Engineer", profileForm.country || "India")}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start justify-between p-2.5 rounded-lg bg-slate-950/40 hover:bg-indigo-950/20 border border-white/5 hover:border-indigo-500/20 transition-all group cursor-pointer"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="text-xs font-bold text-slate-200 group-hover:text-[#6366f1] transition-all flex items-center space-x-1">
+                                <span>{platform.name}</span>
+                                <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                              </p>
+                              <p className="text-[10px] text-slate-550 leading-normal mt-0.5">{platform.description}</p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

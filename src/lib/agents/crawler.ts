@@ -267,6 +267,54 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     }
   }
 
+  // Mode 4: Fetch from live public We Work Remotely API
+  if (wantsRemote || !targetCountry) {
+    try {
+      const res = await fetch("https://weworkremotely.com/api/v1/posts");
+      if (res.ok) {
+        const data = await res.json();
+        const listings = data.jobs || [];
+
+        listings.forEach((item: any) => {
+          const title = item.title || "";
+          const company = item.company || "";
+          const desc = item.description || "";
+          const tags = Array.isArray(item.tags) ? item.tags.join(", ") : "";
+
+          const matchesRole = !targetRole ||
+            title.toLowerCase().includes(targetRole) ||
+            tags.toLowerCase().includes(targetRole) ||
+            desc.toLowerCase().includes(targetRole);
+
+          if (!matchesRole) return;
+
+          const postDate = item.post_date ? new Date(item.post_date) : new Date();
+          const ageInHours = (new Date().getTime() - postDate.getTime()) / (1000 * 60 * 60);
+          if (maxHours > 0 && ageInHours > maxHours) return;
+
+          const displayLoc = plan.filters.country ? `Remote (${plan.filters.country})` : (item.location || "Remote");
+          const experience = parseExperience(title, desc);
+          const education = parseEducation(desc);
+
+          jobs.push({
+            title,
+            company,
+            location: displayLoc,
+            salary: "Competitive",
+            experience,
+            education,
+            description: desc.replace(/<[^>]*>/g, ""),
+            source: "WeWorkRemotely",
+            url: item.url || "https://weworkremotely.com",
+            postedDate: `${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          });
+        });
+      }
+    } catch (error) {
+      console.error("[Crawler Agent] WeWorkRemotely live fetch failed:", error);
+    }
+  }
+
   // Fallback: If no live results, generate country-relevant search links (not fake jobs)
   if (jobs.length === 0) {
     const country = plan.filters.country || "India";
