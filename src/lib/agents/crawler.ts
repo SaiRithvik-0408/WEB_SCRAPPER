@@ -329,22 +329,27 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
     const globalCompanies = ["Google", "Microsoft", "Amazon", "Meta", "Apple"];
     const fallbackCompanies = targetCountry === "india" ? indiaCompanies : globalCompanies;
 
-    const careerUrls: { [key: string]: string } = {
-      Google: "https://careers.google.com",
-      Microsoft: "https://careers.microsoft.com",
-      Amazon: "https://www.amazon.jobs",
-      Meta: "https://www.metacareers.com",
-      Apple: "https://www.apple.com/careers",
-      TCS: "https://www.tcs.com/careers",
-      Infosys: "https://www.infosys.com/careers.html",
-      Wipro: "https://careers.wipro.com",
-      "HCL Technologies": "https://www.hcltech.com/careers",
-      "Tech Mahindra": "https://careers.techmahindra.com",
-      Razorpay: "https://razorpay.com/jobs",
-      Swiggy: "https://careers.swiggy.com",
-      PhonePe: "https://www.phonepe.com/careers",
-      Freshworks: "https://www.freshworks.com/company/careers",
-      Zepto: "https://www.zepto.careers"
+    const getCareerUrl = (comp: string) => {
+      const q = encodeURIComponent(role);
+      const loc = encodeURIComponent(country);
+      const urls: { [key: string]: string } = {
+        Google: `https://careers.google.com/jobs/results/?q=${q}&location=${loc}`,
+        Microsoft: `https://careers.microsoft.com/us/en/search-results?keywords=${q}`,
+        Amazon: `https://www.amazon.jobs/en/search?base_query=${q}`,
+        Meta: `https://www.metacareers.com/jobs/?q=${q}`,
+        Apple: `https://jobs.apple.com/en-us/search?search=${q}`,
+        TCS: `https://www.google.com/search?q=site:tcs.com/careers+${q}`,
+        Infosys: `https://career.infosys.com/joblist?keyword=${q}`,
+        Wipro: `https://careers.wipro.com/careers-home/jobs?keywords=${q}`,
+        "HCL Technologies": `https://www.hcltech.com/careers/search-jobs?keyword=${q}`,
+        "Tech Mahindra": `https://www.google.com/search?q=site:careers.techmahindra.com+${q}`,
+        Razorpay: `https://www.google.com/search?q=site:razorpay.com/jobs+${q}`,
+        Swiggy: `https://careers.swiggy.com/#/search?q=${q}`,
+        PhonePe: `https://www.google.com/search?q=site:phonepe.com/careers+${q}`,
+        Freshworks: `https://www.google.com/search?q=site:freshworks.com/company/careers+${q}`,
+        Zepto: `https://www.zepto.careers/jobs?search=${q}`
+      };
+      return urls[comp] || `https://www.google.com/search?q=${encodeURIComponent(`${comp} ${role} jobs ${country}`)}`;
     };
 
     for (let i = 0; i < Math.min(8, fallbackCompanies.length); i++) {
@@ -358,7 +363,7 @@ export async function executeCrawling(plan: SearchPlan): Promise<CrawledJob[]> {
         education: "Bachelor's Degree in Engineering or Computer Science",
         description: `Position: ${role}\nCompany: ${company}\nLocation: ${country}\n\nClick Apply to search for live ${role} openings at ${company} in ${country}.`,
         source: "Search",
-        url: careerUrls[company] || `https://www.google.com/search?q=${encodeURIComponent(`${company} careers`)}`,
+        url: getCareerUrl(company),
         postedDate: `Today (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
       });
     }
