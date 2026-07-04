@@ -252,12 +252,39 @@ export default function Home() {
     }
   };
 
+  const setTab = (tab: "dashboard" | "jobs" | "profile" | "tools" | "logs") => {
+    if (typeof window !== "undefined") {
+      window.location.hash = tab;
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
   // Hydration safety
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     checkAuth();
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "");
+      const validTabs = ["dashboard", "jobs", "profile", "tools", "logs"];
+      if (validTabs.includes(hash)) {
+        setActiveTab(hash as any);
+      }
+    };
+
+    const initialHash = window.location.hash.replace("#", "");
+    const validTabs = ["dashboard", "jobs", "profile", "tools", "logs"];
+    if (validTabs.includes(initialHash)) {
+      setActiveTab(initialHash as any);
+    } else {
+      window.location.hash = "dashboard";
+    }
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   useEffect(() => {
@@ -556,7 +583,7 @@ export default function Home() {
   const handleGenerateCoverLetter = async (job: any) => {
     setSelectedJobForTool(job);
     setGeneratingLetter(true);
-    setActiveTab("tools");
+    setTab("tools");
     try {
       const res = await fetch("/api/cover-letter", {
         method: "POST",
@@ -577,7 +604,7 @@ export default function Home() {
   const handleGeneratePrepQuestions = async (job: any) => {
     setSelectedJobForTool(job);
     setGeneratingPrep(true);
-    setActiveTab("tools");
+    setTab("tools");
     try {
       const res = await fetch("/api/interview-prep", {
         method: "POST",
@@ -1126,7 +1153,7 @@ export default function Home() {
         <aside className="w-64 bg-slate-950/60 border-r border-white/5 p-4 flex flex-col justify-between hidden md:flex">
           <div className="space-y-1">
             <button
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => setTab("dashboard")}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === "dashboard"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/10"
@@ -1138,7 +1165,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => setActiveTab("jobs")}
+              onClick={() => setTab("jobs")}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === "jobs"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/10"
@@ -1150,7 +1177,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => setActiveTab("profile")}
+              onClick={() => setTab("profile")}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === "profile"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/10"
@@ -1162,7 +1189,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => setActiveTab("tools")}
+              onClick={() => setTab("tools")}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === "tools"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/10"
@@ -1174,7 +1201,7 @@ export default function Home() {
             </button>
 
             <button
-              onClick={() => setActiveTab("logs")}
+              onClick={() => setTab("logs")}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
                 activeTab === "logs"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/10"
@@ -1223,7 +1250,7 @@ export default function Home() {
                 <div
                   onClick={() => {
                     setFilters({ ...filters, saved: false, applied: false });
-                    setActiveTab("jobs");
+                    setTab("jobs");
                   }}
                   className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-indigo-500/30 hover:bg-white/5 transition-all"
                 >
@@ -1237,7 +1264,7 @@ export default function Home() {
                 <div
                   onClick={() => {
                     setFilters({ ...filters, saved: false, applied: false });
-                    setActiveTab("jobs");
+                    setTab("jobs");
                   }}
                   className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-emerald-500/30 hover:bg-white/5 transition-all"
                 >
@@ -1251,7 +1278,7 @@ export default function Home() {
                 <div
                   onClick={() => {
                     setFilters({ ...filters, saved: false, applied: true });
-                    setActiveTab("jobs");
+                    setTab("jobs");
                   }}
                   className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-sky-500/30 hover:bg-white/5 transition-all"
                 >
@@ -1264,7 +1291,7 @@ export default function Home() {
                 <div
                   onClick={() => {
                     setFilters({ ...filters, saved: true, applied: false });
-                    setActiveTab("jobs");
+                    setTab("jobs");
                   }}
                   className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between cursor-pointer hover:border-amber-500/30 hover:bg-white/5 transition-all"
                 >
@@ -1277,7 +1304,7 @@ export default function Home() {
                 <div
                   onClick={() => {
                     setFilters({ ...filters, saved: false, applied: false });
-                    setActiveTab("jobs");
+                    setTab("jobs");
                   }}
                   className="glass p-5 rounded-xl border border-white/5 flex flex-col justify-between col-span-2 lg:col-span-1 cursor-pointer hover:border-purple-500/30 hover:bg-white/5 transition-all"
                 >
