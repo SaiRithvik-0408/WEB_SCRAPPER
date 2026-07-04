@@ -1,15 +1,15 @@
+import "dotenv/config";
 import { PrismaClient } from "../generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import path from "path";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { Client, neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
+
+neonConfig.webSocketConstructor = ws;
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-// Locate the database relative to the project root
-const dbPath = path.resolve(process.cwd(), "dev.db");
-const adapter = new PrismaBetterSqlite3(
-  { url: `file:${dbPath}` },
-  { timestampFormat: "unixepoch-ms" }
-);
+const client = new Client(process.env.DATABASE_URL);
+const adapter = new PrismaNeon(client);
 
 export const prisma =
   globalForPrisma.prisma ??
