@@ -23,8 +23,8 @@ export function rankJobs(
   return jobs.map(job => {
     let score = 50; // Base score
 
-    const titleLower = job.title.toLowerCase();
-    const descLower = job.description.toLowerCase();
+    const titleLower = (job.title || "").toLowerCase();
+    const descLower = (job.description || "").toLowerCase();
 
     // Check title match
     let titleMatchCount = 0;
