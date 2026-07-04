@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -12,6 +11,8 @@ model User {
   name          String
   email         String         @unique
   password      String
+  otpCode       String?
+  otpExpires    DateTime?
   createdAt     DateTime       @default(now())
   preference    Preference?
   resumes       Resume[]

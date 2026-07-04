@@ -138,9 +138,13 @@ export default function Home() {
   // Auth state
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot" | "otp">("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [otpMessage, setOtpMessage] = useState("");
 
   // Dashboard & Application state
   const [activeTab, setActiveTab] = useState<"dashboard" | "jobs" | "profile" | "tools" | "logs">("dashboard");
@@ -339,6 +343,53 @@ export default function Home() {
       checkAuth();
     } catch (err) {
       setAuthError("Server communication failed");
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setOtpMessage("");
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAuthError(data.error || "Failed to send OTP");
+        return;
+      }
+      setOtpMessage(`OTP sent successfully! (Code: ${data.otpCode})`);
+      setAuthMode("otp");
+    } catch (err) {
+      setAuthError("Failed to communicate with server");
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setOtpMessage("");
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail, otpCode, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAuthError(data.error || "Failed to reset password");
+        return;
+      }
+      showToast("Password reset successfully! Please sign in.", "success");
+      setAuthMode("login");
+      setAuthForm({ ...authForm, email: otpEmail, password: "" });
+      setOtpCode("");
+      setNewPassword("");
+    } catch (err) {
+      setAuthError("Failed to communicate with server");
     }
   };
 
@@ -646,24 +697,42 @@ export default function Home() {
             <p className="text-gray-400 mt-2 text-sm">Agentic Job Search & Aggregation Suite</p>
           </div>
 
-          <div className="flex space-x-1 bg-slate-900/80 p-1 rounded-lg mb-6 border border-white/5">
-            <button
-              onClick={() => setAuthMode("login")}
-              className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${
-                authMode === "login" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => setAuthMode("register")}
-              className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${
-                authMode === "register" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
-              }`}
-            >
-              Register
-            </button>
-          </div>
+          {(authMode === "login" || authMode === "register") && (
+            <div className="flex space-x-1 bg-slate-900/80 p-1 rounded-lg mb-6 border border-white/5">
+              <button
+                type="button"
+                onClick={() => setAuthMode("login")}
+                className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all cursor-pointer ${
+                  authMode === "login" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("register")}
+                className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all cursor-pointer ${
+                  authMode === "register" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
+                }`}
+              >
+                Register
+              </button>
+            </div>
+          )}
+
+          {authMode === "forgot" && (
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-white mb-1">Forgot Password</h2>
+              <p className="text-xs text-slate-400">Enter your email address and we will send you a 6-digit OTP code to verify your identity.</p>
+            </div>
+          )}
+
+          {authMode === "otp" && (
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-white mb-1">OTP Verification</h2>
+              <p className="text-xs text-slate-400">A verification code has been generated. Please enter it below along with your new password.</p>
+            </div>
+          )}
 
           {authError && (
             <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs px-4 py-3 rounded-lg mb-4">
@@ -671,52 +740,165 @@ export default function Home() {
             </div>
           )}
 
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {authMode === "register" && (
+          {otpMessage && (
+            <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs px-4 py-3 rounded-lg mb-4">
+              {otpMessage}
+            </div>
+          )}
+
+          {(authMode === "login" || authMode === "register") && (
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              {authMode === "register" && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Sai Rithvik"
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                    value={authForm.name}
+                    onChange={e => setAuthForm({ ...authForm, name: e.target.value })}
+                  />
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Name</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="sai@example.com"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                  value={authForm.email}
+                  onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                  value={authForm.password}
+                  onChange={e => setAuthForm({ ...authForm, password: e.target.value })}
+                />
+              </div>
+
+              {authMode === "login" && (
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("forgot");
+                      setOtpEmail(authForm.email);
+                      setAuthError("");
+                      setOtpMessage("");
+                    }}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6 cursor-pointer"
+              >
+                {authMode === "login" ? "Sign In" : "Create Account"}
+              </button>
+            </form>
+          )}
+
+          {authMode === "forgot" && (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="sai@example.com"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                  value={otpEmail}
+                  onChange={e => setOtpEmail(e.target.value)}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6 cursor-pointer"
+              >
+                Send Verification OTP
+              </button>
+
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthError("");
+                    setOtpMessage("");
+                  }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
+            </form>
+          )}
+
+          {authMode === "otp" && (
+            <form onSubmit={handleVerifyOTP} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">OTP Verification Code</label>
                 <input
                   type="text"
                   required
-                  placeholder="Sai Rithvik"
-                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
-                  value={authForm.name}
-                  onChange={e => setAuthForm({ ...authForm, name: e.target.value })}
+                  placeholder="123456"
+                  maxLength={6}
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-center font-bold tracking-widest focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                  value={otpCode}
+                  onChange={e => setOtpCode(e.target.value)}
                 />
               </div>
-            )}
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Email Address</label>
-              <input
-                type="email"
-                required
-                placeholder="sai@example.com"
-                className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
-                value={authForm.email}
-                onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">New Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Password</label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
-                value={authForm.password}
-                onChange={e => setAuthForm({ ...authForm, password: e.target.value })}
-              />
-            </div>
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6 cursor-pointer"
+              >
+                Reset Password & Sign In
+              </button>
 
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6"
-            >
-              {authMode === "login" ? "Sign In" : "Create Account"}
-            </button>
-          </form>
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("forgot");
+                    setAuthError("");
+                    setOtpMessage("");
+                  }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                >
+                  ← Resend OTP Code
+                </button>
+              </div>
+            </form>
+          )}
+
         </div>
       </div>
     );
