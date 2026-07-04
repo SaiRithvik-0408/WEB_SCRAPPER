@@ -16,13 +16,18 @@ export async function GET() {
     const appliedJobs = await prisma.appliedJob.count({ where: { userId } });
     const savedJobs = await prisma.savedJob.count({ where: { userId, saved: true } });
     
-    // Recommended (realistically capped by total jobs in DB)
-    const recommendedCount = totalJobs > 0 
-      ? Math.min(totalJobs, Math.max(1, Math.round(totalJobs * 0.45)))
-      : 0;
-    const newJobs = totalJobs > 0 
-      ? Math.min(totalJobs, Math.max(1, Math.round(totalJobs * 0.15)))
-      : 0;
+    // Recommended (real match count for user notifications)
+    const recommendedCount = await prisma.notification.count({ where: { userId } });
+    
+    // New jobs scraped in the last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const newJobs = await prisma.job.count({
+      where: {
+        scrapedTime: {
+          gte: oneDayAgo,
+        },
+      },
+    });
     
     // Prepare chart data
     const applicationsData = [

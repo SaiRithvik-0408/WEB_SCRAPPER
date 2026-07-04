@@ -42,9 +42,21 @@ export async function POST() {
     console.log("Running Deduplication...");
     const uniqueRawJobs = deduplicateJobs(rawJobs);
 
+    // Fetch active resume for fallback skills/experience
+    const activeResume = await prisma.resume.findFirst({
+      where: { userId, isActive: true },
+    });
+
+    const mergedPreference = {
+      ...preference,
+      skills: preference.skills || activeResume?.skills || null,
+      experience: preference.experience || activeResume?.experience || null,
+      role: preference.role || searchQuery.role || null,
+    };
+
     // Step 5: AI Ranking Agent
     console.log("Running AI Ranker...");
-    const rankedJobs = rankJobs(uniqueRawJobs, preference);
+    const rankedJobs = rankJobs(uniqueRawJobs, mergedPreference);
 
     // Save jobs to Database & record recommendations
     console.log("Wiping older database listings to clear broken links...");

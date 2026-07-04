@@ -65,10 +65,25 @@ export async function GET(req: Request) {
     });
 
     // Rank jobs using Preference Analyzer output if available
+    const activeResume = await prisma.resume.findFirst({
+      where: { userId, isActive: true },
+    });
+
+    const mergedPreference = preference ? {
+      ...preference,
+      skills: preference.skills || activeResume?.skills || null,
+      experience: preference.experience || activeResume?.experience || null,
+      role: preference.role || null,
+    } : {
+      skills: activeResume?.skills || null,
+      experience: activeResume?.experience || null,
+      role: null,
+    };
+
     let ranked = jobs.map(job => {
       let matchScore = 75; // default fallback match score
       
-      if (preference) {
+      if (mergedPreference) {
         const [singleRanked] = rankJobs(
           [
             {
@@ -84,7 +99,7 @@ export async function GET(req: Request) {
               postedDate: job.postedDate,
             },
           ],
-          preference
+          mergedPreference
         );
         matchScore = singleRanked.matchScore;
       }

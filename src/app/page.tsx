@@ -145,9 +145,11 @@ export default function Home() {
   // Dashboard & Application state
   const [activeTab, setActiveTab] = useState<"dashboard" | "jobs" | "profile" | "tools" | "logs">("dashboard");
   const [jobs, setJobs] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [stats, setStats] = useState<any>({ totalJobs: 0, newJobs: 0, applied: 0, saved: 0, recommended: 0 });
   const [charts, setCharts] = useState<any>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [selectedResumeForPreview, setSelectedResumeForPreview] = useState<any>(null);
   const [agentLogs, setAgentLogs] = useState<string[]>([]);
   
   // Agent running states
@@ -219,21 +221,8 @@ export default function Home() {
   }, [toast]);
 
   const handleViewResume = (resume: any) => {
-    try {
-      const newTab = window.open();
-      if (newTab) {
-        newTab.document.write(
-          `<iframe width='100%' height='100%' style='border:none;margin:0;padding:0;' src='${resume.fileContent}'></iframe>`
-        );
-        newTab.document.title = resume.fileName;
-        showToast("Opening resume viewer in a new tab...", "info");
-      } else {
-        showToast("Pop-up blocked! Please allow popups to view.", "error");
-      }
-    } catch (e) {
-      console.error(e);
-      showToast("Failed to view resume", "error");
-    }
+    setSelectedResumeForPreview(resume);
+    showToast("Opening resume viewer...", "info");
   };
 
   const handleDeleteResume = async (resumeId: string) => {
@@ -275,6 +264,10 @@ export default function Home() {
       fetchResumes();
     }
   }, [user, filters]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [jobs]);
 
   const fetchResumes = async () => {
     try {
@@ -1355,154 +1348,147 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Multi-Platform Search Channels */}
-              <div className="glass p-5 rounded-xl border border-white/5 space-y-4 animate-fade-in">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <div className="flex items-center space-x-2">
-                    <Sparkles className="h-4 w-4 text-indigo-450 animate-pulse" />
-                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-                      Multi-Platform 1-Click Search Channels
-                    </h3>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-semibold">
-                    Parameters: {profileForm.role || "Software Engineer"} ({profileForm.country || "India"})
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {jobSearchPlatforms.map((cat, idx) => (
-                    <div key={idx} className="space-y-2.5">
-                      <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300/80 border-l-2 border-indigo-500 pl-2">
-                        {cat.category}
-                      </h4>
-                      <div className="space-y-2">
-                        {cat.items.map((platform, pIdx) => (
-                          <a
-                            key={pIdx}
-                            href={platform.getUrl(profileForm.role || "Software Engineer", profileForm.country || "India")}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-start justify-between p-2.5 rounded-lg bg-slate-950/40 hover:bg-indigo-950/20 border border-white/5 hover:border-indigo-500/20 transition-all group cursor-pointer"
-                          >
-                            <div className="min-w-0 pr-2">
-                              <p className="text-xs font-bold text-slate-200 group-hover:text-[#6366f1] transition-all flex items-center space-x-1">
-                                <span>{platform.name}</span>
-                                <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
-                              </p>
-                              <p className="text-[10px] text-slate-550 leading-normal mt-0.5">{platform.description}</p>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               {/* Jobs List Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Left side list */}
                 <div className="lg:col-span-2 space-y-4 max-h-[calc(100vh-280px)] overflow-y-auto pr-2">
-                  {jobs.length === 0 ? (
-                    <div className="glass p-8 text-center rounded-xl border border-white/5">
-                      <Briefcase className="h-8 w-8 text-slate-600 mx-auto mb-2" />
-                      <p className="text-slate-400 text-sm font-semibold">No jobs found matching the parameters.</p>
-                      <p className="text-slate-500 text-xs mt-1">Try resetting filters or click "Run AI Agent Crawler" above to generate listings.</p>
-                    </div>
-                  ) : (
-                    jobs.map((job: any) => (
-                      <div
-                        key={job.id}
-                        onClick={() => handleSelectJob(job)}
-                        className={`glass p-5 rounded-xl border transition-all cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
-                          selectedJobForTool?.id === job.id ? "border-[#6366f1] bg-[#6366f1]/5" : "border-white/5 hover:border-white/10"
-                        }`}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="font-bold text-base text-slate-100 hover:text-[#6366f1] transition-all">
-                              {job.title}
-                            </h3>
-                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              job.matchScore >= 85 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                : job.matchScore >= 70 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                                : "bg-slate-800 text-slate-400"
-                            }`}>
-                              {job.matchScore}% ATS Score
+                  {(() => {
+                    const JOBS_PER_PAGE = 10;
+                    const totalPages = Math.ceil(jobs.length / JOBS_PER_PAGE);
+                    const paginatedJobs = jobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
+
+                    if (jobs.length === 0) {
+                      return (
+                        <div className="glass p-8 text-center rounded-xl border border-white/5">
+                          <Briefcase className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-slate-400 text-sm font-semibold">No jobs found matching the parameters.</p>
+                          <p className="text-slate-500 text-xs mt-1">Try resetting filters or click "Run AI Agent Crawler" above to generate listings.</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {paginatedJobs.map((job: any) => (
+                          <div
+                            key={job.id}
+                            onClick={() => handleSelectJob(job)}
+                            className={`glass p-5 rounded-xl border transition-all cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
+                              selectedJobForTool?.id === job.id ? "border-[#6366f1] bg-[#6366f1]/5" : "border-white/5 hover:border-white/10"
+                            }`}
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center space-x-2">
+                                <h3 className="font-bold text-base text-slate-100 hover:text-[#6366f1] transition-all">
+                                  {job.title}
+                                </h3>
+                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  job.matchScore >= 85 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                    : job.matchScore >= 70 ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                                    : "bg-slate-800 text-slate-400"
+                                }`}>
+                                  {job.matchScore}% ATS Score
+                                </span>
+                                {job.easyApply && (
+                                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1 animate-pulse">
+                                    <span>⚡ Easy Apply</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 font-semibold">
+                                <span className="text-slate-200">{job.company}</span>
+                                <span>•</span>
+                                <span>{job.location}</span>
+                                <span>•</span>
+                                <span className="text-indigo-300">{job.salary}</span>
+                              </div>
+
+                              <div className="flex items-center space-x-2 mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                <span className="bg-slate-900 px-2 py-0.5 rounded border border-white/5">{job.source}</span>
+                                <span>{job.postedDate}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-2 self-stretch md:self-auto justify-end">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSaveJob(job.id, job.saved);
+                                }}
+                                className={`p-2 rounded-lg border transition-all ${
+                                  job.saved ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
+                                }`}
+                                title="Save Job"
+                              >
+                                <Bookmark className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleApply(job.id, job.applied);
+                                }}
+                                className={`p-2 rounded-lg border transition-all ${
+                                  job.applied ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
+                                }`}
+                                title={job.applied ? "Marked as Applied" : "Mark as Applied"}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApplyJob(job.url);
+                                }}
+                                className="px-3 py-2 rounded-lg text-xs font-semibold border bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-700 transition-all"
+                              >
+                                Apply
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateCoverLetter(job);
+                                }}
+                                className="p-2 rounded-lg border bg-slate-900 border-white/5 text-slate-400 hover:text-white transition-all"
+                                title="Cover Letter Builder"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {jobs.length > JOBS_PER_PAGE && (
+                          <div className="flex items-center justify-between pt-4 border-t border-white/5 bg-slate-900/10 p-3 rounded-lg mt-4">
+                            <button
+                              type="button"
+                              disabled={currentPage === 1}
+                              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-white/5 hover:border-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer text-slate-300"
+                            >
+                              Previous
+                            </button>
+                            <span className="text-xs text-slate-400 font-semibold">
+                              Page {currentPage} of {totalPages}
                             </span>
-                            {job.easyApply && (
-                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1 animate-pulse">
-                                <span>⚡ Easy Apply</span>
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              disabled={currentPage === totalPages}
+                              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-white/5 hover:border-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer text-slate-300"
+                            >
+                              Next
+                            </button>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 font-semibold">
-                            <span className="text-slate-200">{job.company}</span>
-                            <span>•</span>
-                            <span>{job.location}</span>
-                            <span>•</span>
-                            <span className="text-indigo-300">{job.salary}</span>
-                          </div>
-
-                          <div className="flex items-center space-x-2 mt-2 pt-2 border-t border-white/5 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                            <span className="bg-slate-900 px-2 py-0.5 rounded border border-white/5">{job.source}</span>
-                            <span>{job.postedDate}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2 self-stretch md:self-auto justify-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSaveJob(job.id, job.saved);
-                            }}
-                            className={`p-2 rounded-lg border transition-all ${
-                              job.saved ? "bg-amber-500/10 border-amber-500/20 text-amber-400" : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
-                            }`}
-                            title="Save Job"
-                          >
-                            <Bookmark className="h-4 w-4" />
-                          </button>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleApply(job.id, job.applied);
-                            }}
-                            className={`p-2 rounded-lg border transition-all ${
-                              job.applied ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" : "bg-slate-900 border-white/5 text-slate-400 hover:text-white"
-                            }`}
-                            title={job.applied ? "Marked as Applied" : "Mark as Applied"}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </button>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleApplyJob(job.url);
-                            }}
-                            className="px-3 py-2 rounded-lg text-xs font-semibold border bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-700 transition-all"
-                          >
-                            Apply
-                          </button>
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleGenerateCoverLetter(job);
-                            }}
-                            className="p-2 rounded-lg border bg-slate-900 border-white/5 text-slate-400 hover:text-white transition-all"
-                            title="Cover Letter Builder"
-                          >
-                            <FileText className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Right side details card */}
@@ -1621,21 +1607,28 @@ export default function Home() {
                           </div>
                         </>
                       ) : (
-                        <div className="space-y-3 h-[500px] flex flex-col">
-                          <div className="text-[10px] text-slate-400 bg-slate-950/60 p-2.5 rounded border border-white/5 flex items-center justify-between">
-                            <span>Showing secure in-app preview. Career page security might require opening in a new tab.</span>
-                            <button
-                              onClick={() => handleApplyJob(selectedJobForTool.url)}
-                              className="text-indigo-400 hover:underline font-bold"
-                            >
-                              Open in New Tab ↗
-                            </button>
+                        <div className="space-y-4 h-[500px] flex flex-col items-center justify-center text-center p-6 bg-slate-950/40 rounded-lg border border-white/5">
+                          <div className="p-4 bg-indigo-500/10 rounded-full text-indigo-400 mb-2">
+                            <ArrowUpRight className="h-8 w-8 animate-pulse" />
                           </div>
-                          <iframe
-                            src={selectedJobForTool.url}
-                            className="w-full flex-1 rounded-lg border border-white/10 bg-slate-950 shadow-inner"
-                            title="In-App Job Posting Portal"
-                          />
+                          <h3 className="text-sm font-bold text-white">External Career Application</h3>
+                          <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                            For security, authentication, and correct redirection, job application portals must be opened in a new secure browser tab.
+                          </p>
+                          <button
+                            onClick={() => handleApplyJob(selectedJobForTool.url)}
+                            className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                          >
+                            <span>Open Application in New Tab</span>
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDetailsSubTab("info")}
+                            className="text-xs text-slate-500 hover:text-slate-400 transition-all font-semibold mt-2 cursor-pointer"
+                          >
+                            ← Back to Details & ATS Analysis
+                          </button>
                         </div>
                       )}
                     </>
@@ -1649,12 +1642,57 @@ export default function Home() {
 
               </div>
 
+              {/* Multi-Platform Search Channels */}
+              <div className="glass p-5 rounded-xl border border-white/5 space-y-4 animate-fade-in mt-6">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <Sparkles className="h-4 w-4 text-indigo-455 animate-pulse" />
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                      Multi-Platform 1-Click Search Channels
+                    </h3>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-semibold">
+                    Parameters: {profileForm.role || "Software Engineer"} ({profileForm.country || "India"})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {jobSearchPlatforms.map((cat, idx) => (
+                    <div key={idx} className="space-y-2.5">
+                      <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300/80 border-l-2 border-indigo-500 pl-2">
+                        {cat.category}
+                      </h4>
+                      <div className="space-y-2">
+                        {cat.items.map((platform, pIdx) => (
+                          <a
+                            key={pIdx}
+                            href={platform.getUrl(profileForm.role || "Software Engineer", profileForm.country || "India")}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-start justify-between p-2.5 rounded-lg bg-slate-950/40 hover:bg-indigo-950/20 border border-white/5 hover:border-indigo-500/20 transition-all group cursor-pointer"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <p className="text-xs font-bold text-slate-200 group-hover:text-[#6366f1] transition-all flex items-center space-x-1">
+                                <span>{platform.name}</span>
+                                <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                              </p>
+                              <p className="text-[10px] text-slate-550 leading-normal mt-0.5">{platform.description}</p>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
           )}
 
           {/* TAB 3: USER PROFILE */}
           {activeTab === "profile" && (
-            <div className="max-w-3xl mx-auto space-y-8 animate-fadeIn">
+            <div className={`mx-auto animate-fadeIn ${selectedResumeForPreview ? "max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8" : "max-w-3xl space-y-8"}`}>
+              <div className="space-y-8">
               
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-white">Preference Management</h1>
@@ -1884,6 +1922,30 @@ export default function Home() {
                   </button>
                 </div>
               </form>
+              </div>
+
+              {selectedResumeForPreview && (
+                <div className="glass p-6 rounded-xl border border-white/5 space-y-4 self-start sticky top-6 h-[calc(100vh-160px)] flex flex-col">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-slate-100 truncate">{selectedResumeForPreview.fileName}</h3>
+                      <p className="text-[10px] text-slate-400">Interactive Resume Viewer</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedResumeForPreview(null)}
+                      className="text-xs text-slate-500 hover:text-slate-300 font-semibold cursor-pointer"
+                    >
+                      Close ✕
+                    </button>
+                  </div>
+                  <iframe
+                    src={selectedResumeForPreview.fileContent}
+                    className="w-full flex-1 rounded-lg border border-white/10 bg-slate-950 shadow-inner"
+                    title="Resume Previewer"
+                  />
+                </div>
+              )}
 
             </div>
           )}

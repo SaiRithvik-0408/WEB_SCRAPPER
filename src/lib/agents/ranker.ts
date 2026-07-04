@@ -40,7 +40,11 @@ export function rankJobs(
     // Check skills match
     let skillMatchCount = 0;
     userSkills.forEach(skill => {
-      if (descLower.includes(skill) || titleLower.includes(skill)) {
+      const escapedSkill = skill.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const boundaryBefore = /^\w/.test(skill) ? '\\b' : '(?<!\\w)';
+      const boundaryAfter = /\w$/.test(skill) ? '\\b' : '(?!\\w)';
+      const regex = new RegExp(boundaryBefore + escapedSkill + boundaryAfter, 'i');
+      if (regex.test(titleLower) || regex.test(descLower)) {
         skillMatchCount++;
       }
     });
