@@ -1355,7 +1355,7 @@ export default function Home() {
                 {/* Left side list */}
                 <div className="lg:col-span-2 space-y-4 max-h-[calc(100vh-280px)] overflow-y-auto pr-2">
                   {(() => {
-                    const JOBS_PER_PAGE = 10;
+                    const JOBS_PER_PAGE = 5;
                     const totalPages = Math.ceil(jobs.length / JOBS_PER_PAGE);
                     const paginatedJobs = jobs.slice((currentPage - 1) * JOBS_PER_PAGE, currentPage * JOBS_PER_PAGE);
 
