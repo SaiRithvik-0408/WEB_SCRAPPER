@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Briefcase,
   User,
@@ -135,19 +136,32 @@ const jobSearchPlatforms = [
 ];
 
 export default function Home() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // Derived routing states
+  const activeTab = (() => {
+    const slug = pathname.split("/").filter(Boolean)[0];
+    const validTabs = ["dashboard", "jobs", "profile", "tools", "logs"];
+    return validTabs.includes(slug) ? (slug as any) : "dashboard";
+  })();
+
+  const authMode = (() => {
+    const slug = pathname.split("/").filter(Boolean)[0];
+    const validAuthModes = ["login", "register", "forgot", "otp", "login-otp"];
+    return validAuthModes.includes(slug) ? (slug as any) : "login";
+  })();
+
   // Auth state
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot" | "otp">("login");
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [otpMessage, setOtpMessage] = useState("");
-
-  // Dashboard & Application state
-  const [activeTab, setActiveTab] = useState<"dashboard" | "jobs" | "profile" | "tools" | "logs">("dashboard");
+  const [isOtpSent, setIsOtpSent] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [stats, setStats] = useState<any>({ totalJobs: 0, newJobs: 0, applied: 0, saved: 0, recommended: 0 });
@@ -252,12 +266,8 @@ export default function Home() {
     }
   };
 
-  const setTab = (tab: "dashboard" | "jobs" | "profile" | "tools" | "logs") => {
-    if (typeof window !== "undefined") {
-      window.location.hash = tab;
-    } else {
-      setActiveTab(tab);
-    }
+  const setTab = (tab: "dashboard" | "jobs" | "profile" | "tools" | "logs" | "login" | "register" | "forgot" | "otp" | "login-otp") => {
+    router.push("/" + tab);
   };
 
   // Hydration safety
@@ -266,26 +276,7 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     checkAuth();
-
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace("#", "");
-      const validTabs = ["dashboard", "jobs", "profile", "tools", "logs"];
-      if (validTabs.includes(hash)) {
-        setActiveTab(hash as any);
-      }
-    };
-
-    const initialHash = window.location.hash.replace("#", "");
-    const validTabs = ["dashboard", "jobs", "profile", "tools", "logs"];
-    if (validTabs.includes(initialHash)) {
-      setActiveTab(initialHash as any);
-    } else {
-      window.location.hash = "dashboard";
-    }
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     if (user) {
@@ -321,10 +312,16 @@ export default function Home() {
   const checkAuth = async () => {
     try {
       const res = await fetch("/api/auth/me");
+      const currentSlug = window.location.pathname.split("/").filter(Boolean)[0];
+      const isAuthPage = ["login", "register", "forgot", "otp"].includes(currentSlug);
+
       if (res.ok) {
         const data = await res.json();
         if (data.authenticated) {
           setUser(data.user);
+          if (isAuthPage || !currentSlug) {
+            router.push("/dashboard");
+          }
           if (data.user.preference) {
             setProfileForm({
               role: data.user.preference.role || "",
@@ -342,6 +339,16 @@ export default function Home() {
           } else {
             setShowOnboarding(true);
           }
+        } else {
+          setUser(null);
+          if (!isAuthPage) {
+            router.push("/login");
+          }
+        }
+      } else {
+        setUser(null);
+        if (!isAuthPage) {
+          router.push("/login");
         }
       }
     } catch (e) {
@@ -373,6 +380,49 @@ export default function Home() {
     }
   };
 
+  const handleSendLoginOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setOtpMessage("");
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAuthError(data.error || "Failed to send OTP");
+        return;
+      }
+      setOtpMessage(`OTP sent successfully! (Code: ${data.otpCode})`);
+      setIsOtpSent(true);
+    } catch (err) {
+      setAuthError("Failed to communicate with server");
+    }
+  };
+
+  const handleVerifyLoginOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      const res = await fetch("/api/auth/login-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: otpEmail, otpCode }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAuthError(data.error || "Failed to log in with OTP");
+        return;
+      }
+      setUser(data.user);
+      router.push("/dashboard");
+    } catch (err) {
+      setAuthError("Server communication failed");
+    }
+  };
+
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -389,7 +439,7 @@ export default function Home() {
         return;
       }
       setOtpMessage(`OTP sent successfully! (Code: ${data.otpCode})`);
-      setAuthMode("otp");
+      setTab("otp");
     } catch (err) {
       setAuthError("Failed to communicate with server");
     }
@@ -411,7 +461,7 @@ export default function Home() {
         return;
       }
       showToast("Password reset successfully! Please sign in.", "success");
-      setAuthMode("login");
+      setTab("login");
       setAuthForm({ ...authForm, email: otpEmail, password: "" });
       setOtpCode("");
       setNewPassword("");
@@ -728,7 +778,7 @@ export default function Home() {
             <div className="flex space-x-1 bg-slate-900/80 p-1 rounded-lg mb-6 border border-white/5">
               <button
                 type="button"
-                onClick={() => setAuthMode("login")}
+                onClick={() => setTab("login")}
                 className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all cursor-pointer ${
                   authMode === "login" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
                 }`}
@@ -737,7 +787,7 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => setAuthMode("register")}
+                onClick={() => setTab("register")}
                 className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all cursor-pointer ${
                   authMode === "register" ? "bg-[#6366f1] text-white" : "text-gray-400 hover:text-white"
                 }`}
@@ -814,11 +864,24 @@ export default function Home() {
               </div>
 
               {authMode === "login" && (
-                <div className="text-right">
+                <div className="flex justify-between items-center mt-2">
                   <button
                     type="button"
                     onClick={() => {
-                      setAuthMode("forgot");
+                      setTab("login-otp");
+                      setOtpEmail(authForm.email);
+                      setAuthError("");
+                      setOtpMessage("");
+                      setIsOtpSent(false);
+                    }}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                  >
+                    Sign In with OTP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgot");
                       setOtpEmail(authForm.email);
                       setAuthError("");
                       setOtpMessage("");
@@ -836,6 +899,65 @@ export default function Home() {
               >
                 {authMode === "login" ? "Sign In" : "Create Account"}
               </button>
+            </form>
+          )}
+
+          {authMode === "login-otp" && (
+            <form onSubmit={isOtpSent ? handleVerifyLoginOTP : handleSendLoginOTP} className="space-y-4">
+              <div className="mb-4">
+                <h2 className="text-lg font-bold text-white mb-1">Sign In with OTP</h2>
+                <p className="text-xs text-slate-400">Enter your email to receive a secure 6-digit login code.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  disabled={isOtpSent}
+                  placeholder="sai@example.com"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600 disabled:opacity-60"
+                  value={otpEmail}
+                  onChange={e => setOtpEmail(e.target.value)}
+                />
+              </div>
+
+              {isOtpSent && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">OTP Verification Code</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="123456"
+                    maxLength={6}
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-center font-bold tracking-widest focus:outline-none focus:border-[#6366f1] transition-all text-white placeholder-gray-600"
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white font-semibold py-3 px-4 rounded-lg shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all text-sm mt-6 cursor-pointer"
+              >
+                {isOtpSent ? "Verify & Sign In" : "Send Login OTP"}
+              </button>
+
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("login");
+                    setAuthError("");
+                    setOtpMessage("");
+                    setIsOtpSent(false);
+                  }}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                >
+                  ← Back to Password Login
+                </button>
+              </div>
             </form>
           )}
 
@@ -864,7 +986,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => {
-                    setAuthMode("login");
+                    setTab("login");
                     setAuthError("");
                     setOtpMessage("");
                   }}
@@ -914,7 +1036,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => {
-                    setAuthMode("forgot");
+                    setTab("forgot");
                     setAuthError("");
                     setOtpMessage("");
                   }}
